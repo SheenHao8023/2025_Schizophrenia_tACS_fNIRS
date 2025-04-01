@@ -4,15 +4,17 @@
 % Homer3: https://github.com/BUNPC/Homer3
 % NIRS-KIT: https://github.com/bnuhouxin/NIRS-KIT
 % MVGC: https://github.com/lcbarnett/MVGC1
+% JIDT: https://github.com/jlizier/jidt;   运行此工具包需要安装Java
 
 %% 将所有.nirs文件转换为.snirf标准文件
 Homer3 % 运行homer3，再关闭窗口或直接转换
 Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
 snirf = Nirs2Snirf('C:/Users/XinHao/Desktop/tES_SZ_fNIRS/1.nirsdata');  % 如果直接通过GUI转换则注释掉本行，此函数仅支持路径全名，不可拼接
 % 移动数据，保留原始数据文件不做改动
-mkdir(fullfile(Path, '2.snirfdata'));
+mkdir(fullfile(Path, '2.snirfdata_full'));
+mkdir(fullfile(Path, '2.snirfdata_split'));
 source_dir = fullfile(Path, '1.nirsdata');
-target_dir = fullfile(Path, '2.snirfdata');
+target_dir = fullfile(Path, '2.snirfdata_full');
 snirf_files = dir(fullfile(source_dir, '*.snirf'));
 for i = 1:length(snirf_files)
     snirf_file = fullfile(source_dir, snirf_files(i).name);
@@ -22,29 +24,36 @@ end
 
 %% 数据分段
 Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
-all_files = dir(fullfile(Path, '2.snirfdata', '*.snirf'));
+all_files = dir(fullfile(Path, '2.snirfdata_full', '*.snirf'));
+oldapparatus = {'001', '004', '005', '006'}; % Only Hearing each other needs to distinguish markers in different apparatus
+newapparatus = {'002', '003'};
 for i = 1:length(all_files)
     current_file = fullfile(all_files(i).folder, all_files(i).name);
     Data = loadsnirf(current_file);
     [~, filename, ~] = fileparts(current_file);
-    if endsWith(filename, 'resting') % resting-state including pre and post test
+    if endsWith(filename, 'resting') % resting-state including pre- and post-test
         timeseries = Data.nirs.data.time;
         time_indices = find(timeseries > 30 & timeseries <= 150); % time window
         Data.nirs.data.time = Data.nirs.data.time(time_indices)-30;
         Data.nirs.aux.time = Data.nirs.aux.time(time_indices)-30;
         Data.nirs.data.dataTimeSeries = Data.nirs.data.dataTimeSeries(time_indices, :);
         Data.nirs.aux.dataTimeSeries = Data.nirs.aux.dataTimeSeries(time_indices, :);
-        if endsWith(filename, 'Aresting')
-            savesnirf(Data, fullfile(all_files(i).folder, [filename(1:5), '_0r', '.snirf']));
+        if endsWith(filename, '1_resting')
+            savesnirf(Data, fullfile(Path, '2.snirfdata_split', [filename(1:5), '_R1', '.snirf']));
         else
-            savesnirf(Data, fullfile(all_files(i).folder, [filename(1:5), '_5r', '.snirf']));
+            savesnirf(Data, fullfile(Path, '2.snirfdata_split', [filename(1:5), '_R2', '.snirf']));
         end
-    elseif endsWith(filename, 'A') % pre test tasking state including 4 conditions
+
+    elseif  endsWith(filename, 'tasking') && filename(7) == '1' % pre test tasking state including 4 conditions
         timeseries = Data.nirs.data.time;
-        time_data = Data.nirs.stim1.data(:, 1);
-        suffixes = {'_1e', '_2e', '_3e', '_4e'}; % Hearing each other
+        if ismember(filename(3:5), oldapparatus)
+            time_data = Data.nirs.stim2.data(:, 1);
+        else
+            time_data = Data.nirs.stim1.data(:, 1);  %newapparatus
+        end
+        suffixes = {'_HEO1', '_HEO2', '_HEO3', '_HEO4'}; % Hearing each other
         if size(time_data, 1) <= 4
-            disp('Not enough stim marks in 4blocks, skipping processing.');
+            disp('Not enough stim markers in tasking state, skipping processing.');
         else
             [idx, centroids] = kmeans(time_data, 4);
             [~, sort_idx] = sort(centroids);
@@ -62,7 +71,7 @@ for i = 1:length(all_files)
                 Data.nirs.aux.time = Data.nirs.aux.time(time_indices)-min(cluster_times);
                 Data.nirs.data.dataTimeSeries = Data.nirs.data.dataTimeSeries(time_indices, :);
                 Data.nirs.aux.dataTimeSeries = Data.nirs.aux.dataTimeSeries(time_indices, :);
-                savesnirf(Data, fullfile(all_files(i).folder, [filename(1:5), suffixes{j}, '.snirf']));
+                savesnirf(Data, fullfile(Path, '2.snirfdata_split', [filename(1:5), suffixes{j}, '.snirf']));
                 Data = loadsnirf(current_file);
             end
         end
@@ -70,9 +79,9 @@ for i = 1:length(all_files)
         Data = loadsnirf(current_file);
         timeseries = Data.nirs.data.time;
         time_data = Data.nirs.stim3.data(:, 1);
-        suffixes = {'_1a', '_2a', '_3a', '_4a'}; % Hearing A
+        suffixes = {'_HA1', '_HA2', '_HA3', '_HA4'}; % Hearing A/HC
         if size(time_data, 1) <= 4
-            disp('Not enough stim marks in 4blocks, skipping processing.');
+            disp('Not enough stim markers in tasking state, skipping processing.');
         else
             [idx, centroids] = kmeans(time_data, 4);
             [~, sort_idx] = sort(centroids);
@@ -90,7 +99,7 @@ for i = 1:length(all_files)
                 Data.nirs.aux.time = Data.nirs.aux.time(time_indices)-min(cluster_times);
                 Data.nirs.data.dataTimeSeries = Data.nirs.data.dataTimeSeries(time_indices, :);
                 Data.nirs.aux.dataTimeSeries = Data.nirs.aux.dataTimeSeries(time_indices, :);
-                savesnirf(Data, fullfile(all_files(i).folder, [filename(1:5), suffixes{j}, '.snirf']));
+                savesnirf(Data, fullfile(Path, '2.snirfdata_split', [filename(1:5), suffixes{j}, '.snirf']));
                 Data = loadsnirf(current_file);
             end
         end
@@ -98,9 +107,9 @@ for i = 1:length(all_files)
         Data = loadsnirf(current_file);
         timeseries = Data.nirs.data.time;
         time_data = Data.nirs.stim4.data(:, 1);
-        suffixes = {'_1b', '_2b', '_3b', '_4b'}; % Hearing B
+        suffixes = {'_HB1', '_HB2', '_HB3', '_HB4'}; % Hearing B/SZ
         if size(time_data, 1) <= 4
-            disp('Not enough stim marks in 4blocks, skipping processing.');
+            disp('Not enough stim markers in tasking state, skipping processing.');
         else
             [idx, centroids] = kmeans(time_data, 4);
             [~, sort_idx] = sort(centroids);
@@ -118,15 +127,19 @@ for i = 1:length(all_files)
                 Data.nirs.aux.time = Data.nirs.aux.time(time_indices)-min(cluster_times);
                 Data.nirs.data.dataTimeSeries = Data.nirs.data.dataTimeSeries(time_indices, :);
                 Data.nirs.aux.dataTimeSeries = Data.nirs.aux.dataTimeSeries(time_indices, :);
-                savesnirf(Data, fullfile(all_files(i).folder, [filename(1:5), suffixes{j}, '.snirf']));
+                savesnirf(Data, fullfile(Path, '2.snirfdata_split', [filename(1:5), suffixes{j}, '.snirf']));
                 Data = loadsnirf(current_file);
             end
         end
 
     else % post test tasking state including 1 condition
         timeseries = Data.nirs.data.time;
-        stim_times = {'stim1', 'stim3', 'stim4'};  
-        suffixes = {'_6e', '_6a', '_6b'}; 
+        suffixes = {'_HEO5', '_HA5', '_HB5'}; 
+        if ismember(filename(3:5), oldapparatus)
+            stim_times = {'stim2', 'stim3', 'stim4'};  
+        else
+            stim_times = {'stim1', 'stim3', 'stim4'};    %newapparatus
+        end
         for j = 1:3
             time_data = Data.nirs.(stim_times{j}).data(:, 1);
             if size(time_data, 1) < 2
@@ -137,16 +150,15 @@ for i = 1:length(all_files)
             Data.nirs.aux.time = Data.nirs.aux.time(time_indices) - min(time_data);
             Data.nirs.data.dataTimeSeries = Data.nirs.data.dataTimeSeries(time_indices, :);
             Data.nirs.aux.dataTimeSeries = Data.nirs.aux.dataTimeSeries(time_indices, :);
-            savesnirf(Data, fullfile(all_files(i).folder, [filename(1:5), suffixes{j}, '.snirf']));
+            savesnirf(Data, fullfile(Path, '2.snirfdata_split',  [filename(1:5), suffixes{j}, '.snirf']));
             Data = loadsnirf(current_file);
         end
     end
-    delete(current_file)
 end
 
 %% 数据预处理
 Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
-all_files = dir(fullfile(Path, '2.snirfdata', '*.snirf'));
+all_files = dir(fullfile(Path, '2.snirfdata_split', '*.snirf'));
 mkdir(fullfile(Path, '3.preprocessed'));
 % 随机选择一个文件获取近红外SD信息，用于适配相关函数
 nirs_files = dir(fullfile(Path, '1.nirsdata', '*.nirs'));
@@ -175,7 +187,7 @@ for i = 1:length(all_files)
 end
 
 %% 建立ROI
-Path = 'C:/Users/haox8/Desktop/tES_SZ_fNIRS/'; 
+Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
 all_files = dir(fullfile(Path, '3.preprocessed', '*.mat'));
 mkdir(fullfile(Path, '4.roi')); 
 for i = 1:length(all_files)
@@ -220,59 +232,88 @@ for i = 1:length(all_files)
     save(fullfile(Path, '4.roi', all_files(i).name), 'nirsdata');
 end
 
-%% 脑激活分析，GLM
+%% 脑激活分析，基于GLM
 Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
 all_files = dir(fullfile(Path, '4.roi', '*.mat'));
 subjects = unique(arrayfun(@(x) x.name(1:5), all_files, 'UniformOutput', false));
 num_subjects = length(subjects);
-task_conditions = {'0r', '1a', '1b', '1e', '2a', '2b', '2e', '3a', '3b', '3e', '4a', '4b', '4e', '5r', '6a', '6b', '6e'};
-result_matrix = NaN(num_subjects, 2 + 17 * 30);
-group1 = {'01181', '12281', '03011'}; % Experimental
+task_conditions = {'R1', 'HA1', 'HB1', 'HEO1', 'HA2', 'HB2', 'HEO2', 'HA3', 'HB3', 'HEO3', 'HA4', 'HB4', 'HEO4', 'R2', 'HA5', 'HB5', 'HEO5'};
+result_matrix = cell(num_subjects, 2 + 17 * 30);
+% 用于卷积的血流动力学函数 HRF
+[hrf, ~] = spm_hrf(0.02); % 采样周期 T=0.02
+group1 = {'HZ001', 'HZ002', 'HZ004', 'HZ005', 'HZ006'}; % Experimental
 group2 = {}; % ControlActive
 group3 = {}; % ControlSham
-group4 = {'02061'}; % ControlResting
+group4 = {'HZ003'}; % ControlResting
 for sub = 1:num_subjects
-    subject_files = all_files(contains({all_files.name}, subjects{sub}(1:5)));
-    subject_data = NaN(1, 2 + 17 * 30); 
-    subject_data(1) = str2double(subjects{sub}); % 存ID
+    subject_files = all_files(contains({all_files.name}, subjects{sub}));
+    get_condition = @(condition_name) extractBetween(condition_name, '_', '.mat'); % 从文件名中提取条件部分
+    condition_names = {subject_files.name}; 
+    [~, sorted_idx] = sort(cellfun(@(x) find(strcmp(task_conditions, get_condition(x))), condition_names));
+    subject_files = subject_files(sorted_idx);
+    subject_data = cell(1, 2 + 17 * 30); 
+    subject_data{1} = subjects{sub}; % 存ID
     subject_id = subjects{sub};
     if ismember(subject_id, group1)
-        subject_data(2) = 1; % 存组号
+        subject_data{2} = 1; % 存组号
     elseif ismember(subject_id, group2)
-        subject_data(2) = 2;
+        subject_data{2} = 2;
     elseif ismember(subject_id, group3)
-        subject_data(2) = 3;
+        subject_data{2} = 3;
     elseif ismember(subject_id, group4)
-        subject_data(2) = 4;
+        subject_data{2} = 4;
     else
-        subject_data(2) = NaN; % 不属于任何组的被试
+        subject_data{2} = NaN; % 不属于任何组
     end
     for ch = 1:30
         Y = [];
-        X = []; % design matrix，可考虑修改
+        X = []; % 二值化0/1的方波设计矩阵，block设计用
+        X_hrf = [];
         for file_idx = 1:length(subject_files)
             dcdata = load(fullfile(subject_files(file_idx).folder, subject_files(file_idx).name));
             oxy_data = dcdata.nirsdata.oxyData(:, ch); 
-            task_label = subject_files(file_idx).name(7:8); 
+            task_label = subject_files(file_idx).name(7:strfind(subject_files(file_idx).name, '.mat')-1);
             task_idx = find(strcmp(task_conditions, task_label));
             if ~isempty(task_idx)
                 task_regressor = zeros(length(oxy_data), 17);
                 task_regressor(:, task_idx) = 1;
                 Y = [Y; oxy_data];
-                X = [X; ones(length(oxy_data), 1), task_regressor]; 
+                X = [X; task_regressor]; % 不包含截距项
+            else
+                disp([subject_files(file_idx).name, ' is empty']); 
             end
         end
-        betas = regress(Y, X);
+        for col_idx = 1:size(X, 2)  % 对设计矩阵每一列进行卷积处理
+            current_col = X(:, col_idx);
+            if any(current_col == 1) % 如果当前列不全为 0，才进行卷积
+                start_idx = find(current_col == 1, 1, 'first');  % 第一个 1 的位置
+                end_idx = find(current_col == 1, 1, 'last');    % 最后一个 1 的位置
+                segment = current_col(start_idx:end_idx);  % 提取连续为 1 的区间，对这一段进行卷积
+                conv_result = conv(segment, hrf, 'same');
+                X_hrf(start_idx:end_idx, col_idx) = conv_result(1:length(segment));
+            else % 如果当前列全为 0（如这个条件的数据缺失），则保持 X_hrf 中的该列为 0
+                X_hrf(:, col_idx) = 0;  
+            end
+        end
+        %X_final = [ones(length(X), 1), X_hrf];  % 卷积后再添加截距项
+        X_final = X_hrf;  % 卷积后设计矩阵不添加截距项
+        MDL = fitglm(X_final, Y);
+        betas = MDL.Coefficients.Estimate';
         start_col = 2 + 17 * (ch - 1); 
-        betas = 2 ./ (1 + exp(-0.1 * (zscore(betas) - mean(zscore(betas))))) - 1; %Z-score+Sigmoid
-        subject_data(1, start_col + 1:start_col + 17) = betas(2:end); %不需要常数项
+        new_betas = [betas(2:end)]; %不需要储存截距项系数
+        subject_data(1, start_col + 1:start_col + 17) = num2cell(new_betas); 
+        for i = 1:numel(subject_data)
+            if isequal(subject_data{i}, 0)  
+                subject_data{i} = NaN; 
+            end
+        end
     end
     result_matrix(sub, :) = subject_data;
 end
 mkdir(fullfile(Path, '5.glm')); 
 xlswrite(fullfile(Path, '5.glm', 'activation.xlsx'), result_matrix);
 
-%% 小波相干性功能连接分析
+%% wavelet coherence 功能连接分析
 Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
 all_files = dir(fullfile(Path, '4.roi', '*.mat'));
 coherence_matrix = zeros(15, 15);
@@ -284,10 +325,11 @@ for i = 1:length(all_files)
     for m = 1:15
         for n = 1:15
             [wcoh,~,f] = wcoherence(nirsdata.oxyData(:, m), nirsdata.oxyData(:, n));
-            coherence_value = wcoh (0.01<=f(:,1) & f(:,1)<=0.04 , :);
+            coherence_value = wcoh (0.01<=f(:,1) & f(:,1)<=0.04 , :); % Morlet小波基
             coherence_matrix(m,n) = mean(coherence_value(:));
         end
     end
+    coherence_matrix(eye(size(coherence_matrix)) == 1) = 0;  % 将主对角线元素设为0，符合BCT要求
     save(fullfile(Path, '6.coh_sz', all_files(i).name), 'coherence_matrix');
     for p = 1:15
         for q = 16:30
@@ -299,50 +341,115 @@ for i = 1:length(all_files)
     save(fullfile(Path, '6.coh_pair', all_files(i).name), 'coherence_matrix');
 end
 
-%% 格兰杰因果有效连接分析
+%% Granger causality 有效连接分析
 Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
 all_files = dir(fullfile(Path, '4.roi', '*.mat'));
 mkdir(fullfile(Path, '7.gc_sz')); 
 mkdir(fullfile(Path, '7.gc_pairab')); 
 mkdir(fullfile(Path, '7.gc_pairba')); 
 % state-space method, time domain Granger Causality Analysis
+% 由于神经数据的非平稳性，使用状态空间法研究非平稳数据中所蕴含的时变因果连接变化
+% Cekic, S., Grandjean, D., & Renaud, O. (2018). Time, frequency, and time‐varying Granger‐causality measures in neuroscience. Statistics in medicine, 37(11), 1910-1931.
 % Barnett, L., & Seth, A. K. (2015). Granger causality for state-space models. Physical Review E, 91(4), 040101.
-ntrials   = 1;     % number of trials
-regmode   = 'LWR';  % or 'OLS'
-icregmode = 'LWR';  % or 'OLS'
-morder    = 'BIC';  % or 'actual', 'AIC', numerical value)
-momax     = 20;     % maximum model order for model order estimation
-acmaxlags = 100;   % maximum autocovariance lags (empty for automatic calculation) or '1000'
-tstat     = 'F';    % statistical test for MVGC:  'F' for Granger's F-test (default) or 'chi2' for Geweke's chi2 test
-alpha     = 0.05;   % significance level for significance test
-mhtc      = 'FDR'; % 'NONE' 'BONFERRONI' 'SIDAK' 'HOLM' 'FDR' 'FDRD'
 for i = 1:length(all_files)
     current_file = fullfile(all_files(i).folder, all_files(i).name);
     load(current_file);
-    nobs = size(nirsdata.oxyData, 1);   % number of observations per trial
-    nvars = size(nirsdata.oxyData, 2);   % number of variables
-    [AIC,BIC,moAIC,moBIC] = tsdata_to_infocrit(nirsdata.oxyData',momax,icregmode);  % Model order estimation
-    if     strcmpi(morder,'actual')
-        morder = amo;
-        fprintf('\nusing actual model order = %d\n',morder);
-    elseif strcmpi(morder,'AIC')
-        morder = moAIC;
-        fprintf('\nusing AIC best model order = %d\n',morder);
-    elseif strcmpi(morder,'BIC')
-        morder = moBIC;
-        fprintf('\nusing BIC best model order = %d\n',morder);
-    else
-        fprintf('\nusing specified model order = %d\n',morder);
+    try
+        [AIC,BIC,moAIC,moBIC] = tsdata_to_infocrit(nirsdata.oxyData', 5, 'LWR', false);  % Model order estimation, 'LWR' or 'OLS'
+        fprintf('文件 %s, 最优滞后为: %s', all_files(i).name, moBIC);
+        % BIC准则比AIC准则更适合时间序列分析
+        % Seth, A. K. (2010). A MATLAB toolbox for Granger causal connectivity analysis. Journal of neuroscience methods, 186(2), 262-273.
+        [A, SIG] = tsdata_to_var(nirsdata.oxyData', moBIC, 'LWR');  % VAR model estimation, or  'AIC', numerical value)
+        [F, ~] = var_to_pwcgc(A, SIG, nirsdata.oxyData', 'LWR', 'F');  % Granger causality calculation: time domain 
+        % 方向：F(i, j) 代表从变量 i 到变量 j 的 Granger 因果性
+        F_sz = F(1:15, 1:15);
+        F_sz(eye(size(F_sz)) == 1) = 0;  % 将主对角线元素设为0，符合BCT要求
+        F_pairba = F(1:15, 16:30);
+        F_pairab = F(16:30, 1:15);
+        save(fullfile(Path, '7.gc_sz', all_files(i).name), 'F_sz'); %participant SZ=B
+        save(fullfile(Path, '7.gc_pairba', all_files(i).name), 'F_pairba'); % SZ->HC
+        save(fullfile(Path, '7.gc_pairab', all_files(i).name), 'F_pairab'); % SZ<-HC
+    catch ME
+        % 如果错误包含 "DARE ERROR" 或 "矩阵必须为正定矩阵"，跳过当前文件
+        % 残差协方差矩阵显示为非正定，可能表明自协方差序列估计所基于的时间序列数据不够平稳、长度不够、具有共线性或具有高度偏斜的分布，暂不处理
+        % 此报错的解释：https://users.sussex.ac.uk/~lionelb/MVGC/html/tsdata_to_infocrit.html
+        if contains(ME.message, 'DARE ERROR') || contains(ME.message, '矩阵必须为正定矩阵')
+            fprintf('跳过文件 %s, 发生错误: %s\n', all_files(i).name, ME.message);
+            continue; % 继续处理下一个文件
+        else
+            rethrow(ME); % 其他错误则抛出，防止忽略关键问题
+        end
     end
-    [A, SIG] = tsdata_to_var(nirsdata.oxyData', morder, regmode);  % VAR model estimation
-    [F, ~] = var_to_pwcgc(A, SIG, nirsdata.oxyData', regmode, tstat);  % Granger causality calculation: time domain 
-    %方向性：F(i, j) 代表从变量 i 到变量 j 的 Granger 因果性
-    F_sz = F(1:15, 1:15);
-    F_pairab = F(1:15, 16:30);
-    F_pairba = F(16:30, 1:15);
-    save(fullfile(Path, '7.gc_sz', all_files(i).name), 'F_sz'); %participant A
-    save(fullfile(Path, '7.gc_pairab', all_files(i).name), 'F_pairab');
-    save(fullfile(Path, '7.gc_pairba', all_files(i).name), 'F_pairba');
+
+end
+
+%% mutual information 功能连接分析
+Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
+all_files = dir(fullfile(Path, '4.roi', '*.mat'));
+mi_matrix = zeros(15, 15);
+mkdir(fullfile(Path, '8.mi_sz')); 
+mkdir(fullfile(Path, '8.mi_pair')); 
+javaaddpath('D:\Matlab2024a\matlab_jidt\infodynamics.jar');
+miCalc = javaObject('infodynamics.measures.continuous.kraskov.MutualInfoCalculatorMultiVariateKraskov1');
+% 使用KSG最近邻方法估计互信息
+% Lizier, J. T. (2014). JIDT: An information-theoretic toolkit for studying the dynamics of complex systems. Frontiers in Robotics and AI, 1, 11.
+miCalc.initialise(1, 1);  
+for i = 1:length(all_files)
+    current_file = fullfile(all_files(i).folder, all_files(i).name);
+    load(current_file);
+    for m = 1:15
+        for n = 1:15
+            miCalc.setObservations(octaveToJavaDoubleArray(nirsdata.oxyData(:, m)), octaveToJavaDoubleArray(nirsdata.oxyData(:, n)));
+            mi_matrix(m,n) = miCalc.computeAverageLocalOfObservations();
+        end
+    end
+    mi_matrix(eye(size(mi_matrix)) == 1) = 0;  % 将主对角线元素设为0，符合BCT要求
+    save(fullfile(Path, '8.mi_sz', all_files(i).name), 'mi_matrix');
+    for p = 1:15
+        for q = 16:30
+            miCalc.setObservations(octaveToJavaDoubleArray(nirsdata.oxyData(:, p)), octaveToJavaDoubleArray(nirsdata.oxyData(:, q)));
+            mi_matrix(p, q-15) = miCalc.computeAverageLocalOfObservations();
+        end
+    end
+    save(fullfile(Path, '8.mi_pair', all_files(i).name), 'mi_matrix');
+end
+
+%% Transfer entropy 有效连接分析
+Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
+all_files = dir(fullfile(Path, '4.roi', '*.mat'));
+te_matrix = zeros(15, 15);
+te_matrixA = zeros(15, 15);
+te_matrixB = zeros(15, 15);
+mkdir(fullfile(Path, '9.te_sz')); 
+mkdir(fullfile(Path, '9.te_pairab')); 
+mkdir(fullfile(Path, '9.te_pairba')); 
+javaaddpath('D:\Matlab2024a\matlab_jidt\infodynamics.jar');
+teCalc = javaObject('infodynamics.measures.continuous.kraskov.TransferEntropyCalculatorKraskov');
+teCalc.initialise(1);  % 设置历史长度lag为 1 (Schreiber k=1)
+teCalc.setProperty('k', '4');  % 设置 Kraskov 方法的参数 K = 4（使用 4 个最近邻点）
+teCalc.setProperty("NOISE_LEVEL_TO_ADD", "0"); % 不额外添加扰动
+for i = 1:length(all_files)
+    current_file = fullfile(all_files(i).folder, all_files(i).name);
+    load(current_file);
+    for m = 1:15
+        for n = 1:15
+            teCalc.setObservations(nirsdata.oxyData(:, m), nirsdata.oxyData(:, n));
+            te_matrix(m, n) = teCalc.computeAverageLocalOfObservations();
+        end
+    end
+    te_matrix(eye(size(te_matrix)) == 1) = 0;  % 将主对角线元素设为0，符合BCT要求
+    save(fullfile(Path, '9.te_sz', all_files(i).name), 'te_matrix'); % participant SZ=B
+
+    for p = 1:15
+        for q = 16:30
+            teCalc.setObservations(nirsdata.oxyData(:, p), nirsdata.oxyData(:, q)); % SZ -> HC
+            te_matrixA(p, q-15) = teCalc.computeAverageLocalOfObservations();
+            teCalc.setObservations(nirsdata.oxyData(:, q), nirsdata.oxyData(:, p)); % SZ <- HC
+            te_matrixB(p, q-15) = teCalc.computeAverageLocalOfObservations();
+        end
+    end
+    save(fullfile(Path, '9.te_pairba', all_files(i).name), 'te_matrixA');
+    save(fullfile(Path, '9.te_pairab', all_files(i).name), 'te_matrixB');
 end
 
 %% 自定义函数: hmrR_MotionCorrectTDDR

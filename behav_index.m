@@ -146,7 +146,7 @@ for i = 1:numel(subfolders)
                     pair.Boutlier(idx,1) = sum(nonzeros(B.IOI <= median(B.IOI) - 0.5 * median(B.IOI)));
                     pair.Boutlier(idx,2) = sum(nonzeros(B.IOI >= median(B.IOI) + 0.5 * median(B.IOI)));
     
-                    %% 计算四种行为指标：IC WS RD TV
+                    %% 计算四种行为指标：IC WS RD TV，只有ab的数据都正确记录才会计算
                     % index1: Within-subject Tapping Stability
                     % For B，公式：sqrt(1/std(IOI))
                     pair.WS(idx,:) = sqrt(1 / std(B.IOI));

@@ -18,8 +18,6 @@ folder_paths <- c(
 connectivity_name <- c('SZ--HC', 'SZ--SZ', 'SZ-->HC', 'HC-->SZ', 'SZ<-->SZ')
 Y_labels <- c('ROI', 'ROI', 'SZ', 'HC', 'ROI')
 limits_list <- list(c(0.15,0.5), c(0.3,0.9), c(0,0.035), c(0,0.025), c(0,0.125))
-task_conditions <- c('0r', '1a', '1b', '1e', '2a', '2b', '2e', '3a', '3b', '3e', 
-                     '4a', '4b', '4e', '5r', '6a', '6b', '6e')
 Conditions <- c("R1", "HA1", "HB1", "HEO1", "HA2", "HB2", "HEO2", "HA3", "HB3", 
                 "HEO3", "HA4", "HB4", "HEO4", "R2", "HA5", "HB5", "HEO5")
 roi_names <- c("rFG", "rSTG", "rTPJ", "rPMC", "rSFG", "rDLPFC", "rFPC", "DMPFC", 
@@ -31,7 +29,7 @@ for (folder_path in folder_paths) {
   mat_files <- list.files(folder_path, pattern = "*.mat", full.names = TRUE)
   group_matrices <- list()
   
-  for (condition in task_conditions) {
+  for (condition in Conditions) {
     condition_files <- mat_files[grepl(paste0("_", condition, "\\.mat$"), mat_files)]
     if (length(condition_files) > 0) {
       matrices <- lapply(condition_files, function(file) {
@@ -44,14 +42,14 @@ for (folder_path in folder_paths) {
     }
   }
   
-  for (condition in task_conditions) {
+  for (condition in Conditions) {
     if (!is.null(group_matrices[[condition]])) {
       avg_matrix <- group_matrices[[condition]]
       melted_data <- melt(avg_matrix)
       p <- ggplot(melted_data, aes(Var1, Var2, fill = value)) +
         geom_tile(color = "lightgray") +
         scale_fill_gradientn(colors = custom_colors, limits = limits_list[[which(folder_paths == folder_path)]]) +
-        labs(title = paste(Conditions[which(task_conditions == condition)]), 
+        labs(title = paste(Conditions[which(Conditions == condition)]), 
              x = paste(connectivity_name[which(folder_paths == folder_path)]), 
              y = paste(Y_labels[which(folder_paths == folder_path)])) +
         theme_minimal() +
