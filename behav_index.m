@@ -5,7 +5,7 @@ basepath = "C:/Users/XinHao/Desktop/tES_SZ_Behav";
 subfolders = dir(basepath);
 subfolders = subfolders([subfolders.isdir]);  
 subfolders = subfolders(~ismember({subfolders.name}, {'.', '..'}));  
-groupMap = containers.Map({'Experimental', 'ControlActive', 'ControlSham', 'ControlResting'}, {1, 2, 3, 4});
+groupMap = containers.Map({'Experimental', 'ControlActive', 'ControlSham', 'ControlResting', 'ControlBehavior'}, {1, 2, 3, 4, 5});
 column_names = {'ID', 'Group'}; 
 for block = 1:5
     for condition = 1:3
@@ -72,6 +72,7 @@ for i = 1:numel(subfolders)
                     continue; 
                 end
 
+                skipped = 0;
                 for n = 1:2:numel(trials) % 遍历所有trials
                     idx = (n-1)/2 + 1;
                     k = strfind(trials(n).name, '_');
@@ -80,7 +81,8 @@ for i = 1:numel(subfolders)
 
                     if ~strcmp(prefixA, prefixB)
                         display(trials(n).name + " missing its pair, now idx = " + idx);
-                        return;
+                        skipped = skipped + 1;
+                        continue;
                     end
     
                     trialInfo = trials(n).name(1:k(2)); 
@@ -93,9 +95,10 @@ for i = 1:numel(subfolders)
                     y = x;  % 将B的数据重命名为 y
                     load(trials(n).name);  
 
-                    if isempty(x) || isempty(y)
+                    if isempty(x) || isempty(y) || numel(x) < 8 || numel(y) < 8
                         display("empty mat, now idx = " + idx);
-                        return;
+                        skipped = skipped + 1;
+                        continue;
                     end
 
                     y(end) = [];
@@ -203,15 +206,18 @@ function theta2 = t2phases(metronome, T)
     j = jstart;
     n = 1;
     theta = nan(size(metronome));  
-    while ~isempty(n) && n < (length(T) - 1)
-        if j > numel(metronome)
-            break;
-        end
-        n = find(sign(metronome(j) - T) == -1, 1) - 1;
-        if ~isempty(n)
-            theta(j) = (metronome(j) - T(n)) / (T(n+1) - T(n)) * 2*pi + 2*pi*n;
+    while j <= numel(metronome)
+        % 找出 T 中比当前 metronome(j) 小的最大索引 n
+        idx = find(sign(metronome(j) - T) == -1, 1) - 1;
+        % 如果没有找到（即 metronome(j) < 所有 T），或 n 超范围，跳过
+        if isempty(idx) || idx < 1 || idx >= length(T)
             j = j + 1;
+            continue;
         end
+        % 正常计算 phase
+        n = idx;
+        theta(j) = (metronome(j) - T(n)) / (T(n+1) - T(n)) * 2*pi + 2*pi*n;
+        j = j + 1;
     end
     theta2 = theta(~isnan(theta));  
 end

@@ -21,13 +21,14 @@ color_map <- list("IC" = rep('#f47c7c', 5),
 group_names <- c("1" = "Experimental", 
                  "2" = "Control active", 
                  "3" = "Control sham", 
-                 "4" = "Control resting")
+                 "4" = "Control resting",
+                 "5" = "Control behavior")
 
 # 横坐标标签映射
 x_labels <- c("B1" = "Pre-test", "B2" = "Online1", "B3" = "Online2", "B4" = "Offline", "B5" = "Post-test")
 
 # y 轴范围设置
-y_limits <- list("IC" = c(0, 1), "WS" = c(0, 0.2), "RD" = c(0, 200), "TV" = c(0, 1000))
+y_limits <- list("IC" = c(0, 1), "WS" = c(0, 0.2), "RD" = c(0, 300), "TV" = c(0, 1800))
 
 # 自定义主题
 theme_custom <- theme_prism(axis_text_angle = 0) +
@@ -100,3 +101,4 @@ for (group in unique_groups) {
   ggsave(filename = paste0(output_dir, "Group", group_names[as.character(group)], ".png"), 
          plot = combined_plot, width = 12, height = 16, dpi = 300)
 }
+
