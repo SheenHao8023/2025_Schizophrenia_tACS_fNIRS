@@ -85,19 +85,19 @@ for (folder_path in folder_paths) {
     }
     
     # 🧠 统一色阶范围（SZ组所有 condition 的 value除对角线）
-    is_sz_folder <- grepl("(_|\\.)sz$", basename(folder_path), ignore.case = TRUE)
-    
-    all_values <- unlist(
-      lapply(group_condition_matrices, function(mat) {
-        if (is_sz_folder) {
-          mat[row(mat) + col(mat) == nrow(mat) + 1] <- NA  # 忽略副对角线
-        }
-        as.vector(mat)
-      })
-    )
-    
-    global_min <- min(all_values, na.rm = TRUE)
-    global_max <- max(all_values, na.rm = TRUE)
+    # is_sz_folder <- grepl("(_|\\.)sz$", basename(folder_path), ignore.case = TRUE)
+    # 
+    # all_values <- unlist(
+    #   lapply(group_condition_matrices, function(mat) {
+    #     if (is_sz_folder) {
+    #       mat[row(mat) + col(mat) == nrow(mat) + 1] <- NA  # 忽略副对角线
+    #     }
+    #     as.vector(mat)
+    #   })
+    # )
+    # 
+    # global_min <- min(all_values, na.rm = TRUE)
+    # global_max <- max(all_values, na.rm = TRUE)
     
     
     # 生成拼图
@@ -111,8 +111,8 @@ for (folder_path in folder_paths) {
         ggplot(melted_data, aes(Var1, Var2, fill = value)) +
           geom_tile(color = "lightgray") +
           scale_fill_gradientn(
-            colors = custom_colors,
-            limits = c(global_min, global_max)
+            colors = custom_colors
+            # ,limits = c(global_min, global_max) #不统一色阶
           ) +
           labs(title = condition,
                x = connectivity_name[[folder_index]],

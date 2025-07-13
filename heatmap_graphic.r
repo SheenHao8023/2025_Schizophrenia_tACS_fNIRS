@@ -6,7 +6,7 @@ install_if_missing <- function(packages) {
 
 install_if_missing(c("ggplot2", "readxl", "viridis", "reshape2", "patchwork"))
 
-file_path <- "C:/Users/XinHao/Desktop/tES_SZ_fNIRS/4.glm/activation.xlsx"
+file_path <- "C:/Users/XinHao/Desktop/tES_SZ_fNIRS/7.graph_indices/nodal_degree.xlsx"
 
 # Step 1: 读取原始数据
 raw_data <- suppressMessages(read_excel(file_path, col_names = FALSE))
@@ -45,14 +45,16 @@ for (group_name in names(group_map)) {
   # 重构成 17 条件 × 15 ROI 的矩阵
   data_matrix_avg_group <- matrix(data_matrix_avg_group, nrow = 17, ncol = 15, byrow = FALSE)
   
-  # ✅ 画图 1：Online activation（第 2~13 条件）
+  # ✅ 画图 1：Block 2~13 条件
   heatmap_data1 <- melt(data_matrix_avg_group[2:13, ])
   max_abs_value <- max(abs(range(heatmap_data1$value, na.rm = TRUE)))
   heatmap_plot1 <- ggplot(heatmap_data1, aes(Var1, Var2, fill = value)) +
     geom_tile() +
-    scale_fill_gradientn(colors = custom_colors, limits = c(-max_abs_value, max_abs_value)) +
+    scale_fill_gradientn(colors = custom_colors
+                         , limits = c(0, max_abs_value)
+                         ) +
     theme_minimal() +
-    labs(title = "Activation (Online)", x = "Condition", y = "ROI") +
+    labs(title = "Nodal degree (Block)", x = "Condition", y = "ROI") +
     theme(panel.grid = element_blank(),  
           axis.text.x = element_text(angle = 45, hjust = 1, color = "black", size = 12), 
           axis.text.y = element_text(angle = 0, hjust = 1, color = "black", size = 12),
@@ -62,14 +64,16 @@ for (group_name in names(group_map)) {
     scale_y_continuous(breaks = 1:15, labels = Channels) +
     coord_fixed(ratio = 1)
   
-  # ✅ 画图 2：RCT（第 1-4 和 14-17 条件）
+  # ✅ 画图 2：Session第 1-4 和 14-17 条件
   heatmap_data2 <- melt(data_matrix_avg_group[c(1:4, 14:17), ])
   max_abs_value <- max(abs(range(heatmap_data2$value, na.rm = TRUE)))
   heatmap_plot2 <- ggplot(heatmap_data2, aes(Var1, Var2, fill = value)) +
     geom_tile() +
-    scale_fill_gradientn(colors = custom_colors, limits = c(-max_abs_value, max_abs_value)) +
+    scale_fill_gradientn(colors = custom_colors
+                         , limits = c(0, max_abs_value)
+                         ) +
     theme_minimal() +
-    labs(title = "Activation (RCT)", x = "Condition", y = "ROI") +
+    labs(title = "Nodal degree (Session)", x = "Condition", y = "ROI") +
     theme(panel.grid = element_blank(),  
           axis.text.x = element_text(angle = 45, hjust = 1, color = "black", size = 12), 
           axis.text.y = element_text(angle = 0, hjust = 1, color = "black", size = 12),
@@ -81,6 +85,6 @@ for (group_name in names(group_map)) {
   
   combined_plot <- heatmap_plot1 | heatmap_plot2
   
-  ggsave(paste0("C:/Users/XinHao/Desktop/tES_SZ_fNIRS/4.glm/activation_heatmap_", group_name, ".png"),
+  ggsave(paste0("C:/Users/XinHao/Desktop/tES_SZ_fNIRS/7.graph_indices/degree_heatmap_", group_name, ".png"),
          plot = combined_plot, width = 12, height = 8, dpi = 300)
 }
