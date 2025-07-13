@@ -4,17 +4,18 @@
 % Homer3: https://github.com/BUNPC/Homer3
 % NIRS-KIT: https://github.com/bnuhouxin/NIRS-KIT
 % MVGC: https://github.com/lcbarnett/MVGC1
-% JIDT: https://github.com/jlizier/jidt;   运行此工具包需要安装Java
+% JIDT: https://github.com/jlizier/jidt,   运行此工具包需要安装Java
+% GRETNA: https://github.com/sandywang/GRETNA
 
 %% 将所有.nirs文件转换为.snirf标准文件
-Homer3 % 运行homer3，再关闭窗口或直接转换
+Homer3 % 运行homer3，弹出后选择no不转换，再关闭Homer3 GUI
 Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
 snirf = Nirs2Snirf('C:/Users/XinHao/Desktop/tES_SZ_fNIRS/1.nirsdata');  % 如果直接通过GUI转换则注释掉本行，此函数仅支持路径全名，不可拼接
 % 移动数据，保留原始数据文件不做改动
-mkdir(fullfile(Path, '2.snirfdata_full'));
-mkdir(fullfile(Path, '2.snirfdata_split'));
+mkdir(fullfile(Path, '1.snirfdata_full'));
+mkdir(fullfile(Path, '1.snirfdata_split'));
 source_dir = fullfile(Path, '1.nirsdata');
-target_dir = fullfile(Path, '2.snirfdata_full');
+target_dir = fullfile(Path, '1.snirfdata_full');
 snirf_files = dir(fullfile(source_dir, '*.snirf'));
 for i = 1:length(snirf_files)
     snirf_file = fullfile(source_dir, snirf_files(i).name);
@@ -22,15 +23,27 @@ for i = 1:length(snirf_files)
     movefile(snirf_file, target_snirf_file);
 end
 
+% 获取已处理的文件前缀
+% processed_files = dir(fullfile(Path, '1.snirfdata_split', '*.snirf'));
+% processed_names = string({processed_files.name});
+% processed_base_names = extractBefore(processed_names, '_');  % 获取文件前缀用于比较
+
 %% 数据分段
 Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
-all_files = dir(fullfile(Path, '2.snirfdata_full', '*.snirf'));
-oldapparatus = {'001', '004', '005', '006'}; % Only Hearing each other needs to distinguish markers in different apparatus
-newapparatus = {'002', '003'};
+all_files = dir(fullfile(Path, '1.snirfdata_full', '*.snirf'));
+oldapparatus = {'HZ001', 'HZ004', 'HZ005', 'HZ006', 'HZ007', 'SX001', 'SX002', 'SX003', 'SX004', 'SX005', 'SX006', 'SX007', 'SX008'}; 
+% Only Hearing each other needs to distinguish markers in different apparatus
+newapparatus = {'HZ002', 'HZ003'};
 for i = 1:length(all_files)
     current_file = fullfile(all_files(i).folder, all_files(i).name);
     Data = loadsnirf(current_file);
     [~, filename, ~] = fileparts(current_file);
+
+    % if any(contains(processed_base_names, filename(1:5)))
+    %     disp(['Skipping already processed file: ', filename]); % 如果文件已处理，则跳过
+    %     continue;
+    % end
+
     if endsWith(filename, 'resting') % resting-state including pre- and post-test
         timeseries = Data.nirs.data.time;
         time_indices = find(timeseries > 30 & timeseries <= 150); % time window
@@ -39,14 +52,14 @@ for i = 1:length(all_files)
         Data.nirs.data.dataTimeSeries = Data.nirs.data.dataTimeSeries(time_indices, :);
         Data.nirs.aux.dataTimeSeries = Data.nirs.aux.dataTimeSeries(time_indices, :);
         if endsWith(filename, '1_resting')
-            savesnirf(Data, fullfile(Path, '2.snirfdata_split', [filename(1:5), '_R1', '.snirf']));
+            savesnirf(Data, fullfile(Path, '1.snirfdata_split', [filename(1:5), '_R1', '.snirf']));
         else
-            savesnirf(Data, fullfile(Path, '2.snirfdata_split', [filename(1:5), '_R2', '.snirf']));
+            savesnirf(Data, fullfile(Path, '1.snirfdata_split', [filename(1:5), '_R2', '.snirf']));
         end
 
     elseif  endsWith(filename, 'tasking') && filename(7) == '1' % pre test tasking state including 4 conditions
         timeseries = Data.nirs.data.time;
-        if ismember(filename(3:5), oldapparatus)
+        if ismember(filename(1:5), oldapparatus)
             time_data = Data.nirs.stim2.data(:, 1);
         else
             time_data = Data.nirs.stim1.data(:, 1);  %newapparatus
@@ -71,7 +84,7 @@ for i = 1:length(all_files)
                 Data.nirs.aux.time = Data.nirs.aux.time(time_indices)-min(cluster_times);
                 Data.nirs.data.dataTimeSeries = Data.nirs.data.dataTimeSeries(time_indices, :);
                 Data.nirs.aux.dataTimeSeries = Data.nirs.aux.dataTimeSeries(time_indices, :);
-                savesnirf(Data, fullfile(Path, '2.snirfdata_split', [filename(1:5), suffixes{j}, '.snirf']));
+                savesnirf(Data, fullfile(Path, '1.snirfdata_split', [filename(1:5), suffixes{j}, '.snirf']));
                 Data = loadsnirf(current_file);
             end
         end
@@ -99,7 +112,7 @@ for i = 1:length(all_files)
                 Data.nirs.aux.time = Data.nirs.aux.time(time_indices)-min(cluster_times);
                 Data.nirs.data.dataTimeSeries = Data.nirs.data.dataTimeSeries(time_indices, :);
                 Data.nirs.aux.dataTimeSeries = Data.nirs.aux.dataTimeSeries(time_indices, :);
-                savesnirf(Data, fullfile(Path, '2.snirfdata_split', [filename(1:5), suffixes{j}, '.snirf']));
+                savesnirf(Data, fullfile(Path, '1.snirfdata_split', [filename(1:5), suffixes{j}, '.snirf']));
                 Data = loadsnirf(current_file);
             end
         end
@@ -127,7 +140,7 @@ for i = 1:length(all_files)
                 Data.nirs.aux.time = Data.nirs.aux.time(time_indices)-min(cluster_times);
                 Data.nirs.data.dataTimeSeries = Data.nirs.data.dataTimeSeries(time_indices, :);
                 Data.nirs.aux.dataTimeSeries = Data.nirs.aux.dataTimeSeries(time_indices, :);
-                savesnirf(Data, fullfile(Path, '2.snirfdata_split', [filename(1:5), suffixes{j}, '.snirf']));
+                savesnirf(Data, fullfile(Path, '1.snirfdata_split', [filename(1:5), suffixes{j}, '.snirf']));
                 Data = loadsnirf(current_file);
             end
         end
@@ -135,7 +148,7 @@ for i = 1:length(all_files)
     else % post test tasking state including 1 condition
         timeseries = Data.nirs.data.time;
         suffixes = {'_HEO5', '_HA5', '_HB5'}; 
-        if ismember(filename(3:5), oldapparatus)
+        if ismember(filename(1:5), oldapparatus)
             stim_times = {'stim2', 'stim3', 'stim4'};  
         else
             stim_times = {'stim1', 'stim3', 'stim4'};    %newapparatus
@@ -150,7 +163,7 @@ for i = 1:length(all_files)
             Data.nirs.aux.time = Data.nirs.aux.time(time_indices) - min(time_data);
             Data.nirs.data.dataTimeSeries = Data.nirs.data.dataTimeSeries(time_indices, :);
             Data.nirs.aux.dataTimeSeries = Data.nirs.aux.dataTimeSeries(time_indices, :);
-            savesnirf(Data, fullfile(Path, '2.snirfdata_split',  [filename(1:5), suffixes{j}, '.snirf']));
+            savesnirf(Data, fullfile(Path, '1.snirfdata_split',  [filename(1:5), suffixes{j}, '.snirf']));
             Data = loadsnirf(current_file);
         end
     end
@@ -158,14 +171,21 @@ end
 
 %% 数据预处理
 Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
-all_files = dir(fullfile(Path, '2.snirfdata_split', '*.snirf'));
-mkdir(fullfile(Path, '3.preprocessed'));
+all_files = dir(fullfile(Path, '1.snirfdata_split', '*.snirf'));
+mkdir(fullfile(Path, '2.preprocessed'));
 % 随机选择一个文件获取近红外SD信息，用于适配相关函数
 nirs_files = dir(fullfile(Path, '1.nirsdata', '*.nirs'));
 nirs = NirsClass(fullfile(Path, '1.nirsdata', nirs_files(randi(length(nirs_files))).name));
 for i = 1:length(all_files)
     current_file = fullfile(all_files(i).folder, all_files(i).name);
     data = DataClass(current_file);
+    [~, filename, ~] = fileparts(current_file);
+
+    % if any(contains(processed_base_names, extractBefore(filename, '_')))
+    %     disp(['Skipping already preprocessed file: ', filename]);
+    %     continue;
+    % end
+
     dod = hmrR_Intensity2OD(data);
     dod = hmrR_BandpassFilt(dod, 0.01, 0.1); % band-pass filter
     dod_tddr = hmrR_MotionCorrectTDDR(dod, nirs.SD, 50); % motion correction: fs = 50，此函数在NIRS_KIT包所带TDDR函数基础上修改
@@ -182,15 +202,21 @@ for i = 1:length(all_files)
     end
     nirsdata.nch = 120;
     nirsdata.T = 0.02;
-    [~, filename, ~] = fileparts(current_file);
-    save(fullfile(Path, '3.preprocessed', [filename, '.mat']), 'nirsdata');
+    save(fullfile(Path, '2.preprocessed', [filename, '.mat']), 'nirsdata');
 end
 
 %% 建立ROI
 Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
-all_files = dir(fullfile(Path, '3.preprocessed', '*.mat'));
-mkdir(fullfile(Path, '4.roi')); 
+all_files = dir(fullfile(Path, '2.preprocessed', '*.mat'));
+mkdir(fullfile(Path, '3.roi')); 
 for i = 1:length(all_files)
+
+    % [~, base_name, ~] = fileparts(all_files(i).name);
+    % if any(processed_base_names == base_name)
+    %     disp(['Skipping already processed file: ', base_name]);
+    %     continue;
+    % end
+
     current_file = fullfile(all_files(i).folder, all_files(i).name);
     load(current_file); 
     nirsdata.oxyData = zscore(nirsdata.oxyData);
@@ -229,23 +255,42 @@ for i = 1:length(all_files)
     newdata(:, 30) = mean(nirsdata.oxyData(:, 117), 2, 'omitnan'); % Left FG
     nirsdata.oxyData = newdata;
     nirsdata.nch=30;
-    save(fullfile(Path, '4.roi', all_files(i).name), 'nirsdata');
+    save(fullfile(Path, '3.roi', all_files(i).name), 'nirsdata');
 end
 
 %% 脑激活分析，基于GLM
 Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
-all_files = dir(fullfile(Path, '4.roi', '*.mat'));
+
+% 判断哪些 subject 已经处理
+% result_file = fullfile(Path, '4.glm', 'activation.xlsx');
+% if exist(result_file, 'file')
+%     old_data = readcell(result_file);
+%     old_subjects = string(old_data(2:end, 1)); % 第一列是ID，跳过表头
+% else
+%     old_data = {};
+%     old_subjects = string([]); % 空数组
+% end
+
+all_files = dir(fullfile(Path, '3.roi', '*.mat'));
 subjects = unique(arrayfun(@(x) x.name(1:5), all_files, 'UniformOutput', false));
 num_subjects = length(subjects);
 task_conditions = {'R1', 'HA1', 'HB1', 'HEO1', 'HA2', 'HB2', 'HEO2', 'HA3', 'HB3', 'HEO3', 'HA4', 'HB4', 'HEO4', 'R2', 'HA5', 'HB5', 'HEO5'};
 result_matrix = cell(num_subjects, 2 + 17 * 30);
 % 用于卷积的血流动力学函数 HRF
 [hrf, ~] = spm_hrf(0.02); % 采样周期 T=0.02
-group1 = {'HZ001', 'HZ002', 'HZ004', 'HZ005', 'HZ006'}; % Experimental
-group2 = {}; % ControlActive
-group3 = {}; % ControlSham
-group4 = {'HZ003'}; % ControlResting
+group1 = {'HZ001', 'HZ002', 'HZ004', 'HZ005', 'HZ006', 'SX001', 'SX007', 'SX008', 'SX009', 'SX013', 'SX016', 'SX018'}; % Experimental
+group2 = {'SX015', 'SX017', 'SX019'}; % ControlActive
+group3 = {'HZ007', 'SX002', 'SX010', 'SX011', 'SX012'}; % ControlSham
+group4 = {'HZ003', 'SX006'}; % ControlResting
+group5 = {'SX003', 'SX004', 'SX005', 'SX014'}; % ControlBehavior
 for sub = 1:num_subjects
+    subject_id = subjects{sub};
+
+    % if any(old_subjects == subject_id)
+    %     disp(['Skipping already processed subject: ', subject_id]);
+    %     continue; % 跳过已处理 subject
+    % end
+
     subject_files = all_files(contains({all_files.name}, subjects{sub}));
     get_condition = @(condition_name) extractBetween(condition_name, '_', '.mat'); % 从文件名中提取条件部分
     condition_names = {subject_files.name}; 
@@ -253,7 +298,7 @@ for sub = 1:num_subjects
     subject_files = subject_files(sorted_idx);
     subject_data = cell(1, 2 + 17 * 30); 
     subject_data{1} = subjects{sub}; % 存ID
-    subject_id = subjects{sub};
+    
     if ismember(subject_id, group1)
         subject_data{2} = 1; % 存组号
     elseif ismember(subject_id, group2)
@@ -262,6 +307,8 @@ for sub = 1:num_subjects
         subject_data{2} = 3;
     elseif ismember(subject_id, group4)
         subject_data{2} = 4;
+    elseif ismember(subject_id, group5)
+        subject_data{2} = 5;
     else
         subject_data{2} = NaN; % 不属于任何组
     end
@@ -310,15 +357,15 @@ for sub = 1:num_subjects
     end
     result_matrix(sub, :) = subject_data;
 end
-mkdir(fullfile(Path, '5.glm')); 
-xlswrite(fullfile(Path, '5.glm', 'activation.xlsx'), result_matrix);
+mkdir(fullfile(Path, '4.glm')); 
+xlswrite(fullfile(Path, '4.glm', 'activation.xlsx'), result_matrix);
 
 %% wavelet coherence 功能连接分析
 Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
-all_files = dir(fullfile(Path, '4.roi', '*.mat'));
+all_files = dir(fullfile(Path, '3.roi', '*.mat'));
 coherence_matrix = zeros(15, 15);
-mkdir(fullfile(Path, '6.coh_sz')); 
-mkdir(fullfile(Path, '6.coh_pair')); 
+mkdir(fullfile(Path, '5.coh_sz')); 
+mkdir(fullfile(Path, '5.coh_pair')); 
 for i = 1:length(all_files)
     current_file = fullfile(all_files(i).folder, all_files(i).name);
     load(current_file);
@@ -330,7 +377,7 @@ for i = 1:length(all_files)
         end
     end
     coherence_matrix(eye(size(coherence_matrix)) == 1) = 0;  % 将主对角线元素设为0，符合BCT要求
-    save(fullfile(Path, '6.coh_sz', all_files(i).name), 'coherence_matrix');
+    save(fullfile(Path, '5.coh_sz', all_files(i).name), 'coherence_matrix');
     for p = 1:15
         for q = 16:30
             [wcoh,~,f] = wcoherence(nirsdata.oxyData(:, p), nirsdata.oxyData(:, q));
@@ -338,15 +385,15 @@ for i = 1:length(all_files)
             coherence_matrix(p, q-15) = mean(coherence_value(:));
         end
     end
-    save(fullfile(Path, '6.coh_pair', all_files(i).name), 'coherence_matrix');
+    save(fullfile(Path, '5.coh_pair', all_files(i).name), 'coherence_matrix');
 end
 
 %% Granger causality 有效连接分析
 Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
-all_files = dir(fullfile(Path, '4.roi', '*.mat'));
-mkdir(fullfile(Path, '7.gc_sz')); 
-mkdir(fullfile(Path, '7.gc_pairab')); 
-mkdir(fullfile(Path, '7.gc_pairba')); 
+all_files = dir(fullfile(Path, '3.roi', '*.mat'));
+mkdir(fullfile(Path, '5.gc_sz')); 
+mkdir(fullfile(Path, '5.gc_pairab')); 
+mkdir(fullfile(Path, '5.gc_pairba')); 
 % state-space method, time domain Granger Causality Analysis
 % 由于神经数据的非平稳性，使用状态空间法研究非平稳数据中所蕴含的时变因果连接变化
 % Cekic, S., Grandjean, D., & Renaud, O. (2018). Time, frequency, and time‐varying Granger‐causality measures in neuroscience. Statistics in medicine, 37(11), 1910-1931.
@@ -355,8 +402,8 @@ for i = 1:length(all_files)
     current_file = fullfile(all_files(i).folder, all_files(i).name);
     load(current_file);
     try
-        [AIC,BIC,moAIC,moBIC] = tsdata_to_infocrit(nirsdata.oxyData', 5, 'LWR', false);  % Model order estimation, 'LWR' or 'OLS'
-        fprintf('文件 %s, 最优滞后为: %s', all_files(i).name, moBIC);
+        [AIC,BIC,moAIC,moBIC] = tsdata_to_infocrit(nirsdata.oxyData', 6, 'LWR', false);  % Model order estimation, 'LWR' or 'OLS'
+        fprintf('文件 %s, 最优滞后为:%s', all_files(i).name, moBIC);
         % BIC准则比AIC准则更适合时间序列分析
         % Seth, A. K. (2010). A MATLAB toolbox for Granger causal connectivity analysis. Journal of neuroscience methods, 186(2), 262-273.
         [A, SIG] = tsdata_to_var(nirsdata.oxyData', moBIC, 'LWR');  % VAR model estimation, or  'AIC', numerical value)
@@ -366,9 +413,9 @@ for i = 1:length(all_files)
         F_sz(eye(size(F_sz)) == 1) = 0;  % 将主对角线元素设为0，符合BCT要求
         F_pairba = F(1:15, 16:30);
         F_pairab = F(16:30, 1:15);
-        save(fullfile(Path, '7.gc_sz', all_files(i).name), 'F_sz'); %participant SZ=B
-        save(fullfile(Path, '7.gc_pairba', all_files(i).name), 'F_pairba'); % SZ->HC
-        save(fullfile(Path, '7.gc_pairab', all_files(i).name), 'F_pairab'); % SZ<-HC
+        save(fullfile(Path, '5.gc_sz', all_files(i).name), 'F_sz'); %participant SZ=B
+        save(fullfile(Path, '5.gc_pairba', all_files(i).name), 'F_pairba'); % SZ->HC
+        save(fullfile(Path, '5.gc_pairab', all_files(i).name), 'F_pairab'); % SZ<-HC
     catch ME
         % 如果错误包含 "DARE ERROR" 或 "矩阵必须为正定矩阵"，跳过当前文件
         % 残差协方差矩阵显示为非正定，可能表明自协方差序列估计所基于的时间序列数据不够平稳、长度不够、具有共线性或具有高度偏斜的分布，暂不处理
@@ -385,10 +432,10 @@ end
 
 %% mutual information 功能连接分析
 Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
-all_files = dir(fullfile(Path, '4.roi', '*.mat'));
+all_files = dir(fullfile(Path, '3.roi', '*.mat'));
 mi_matrix = zeros(15, 15);
-mkdir(fullfile(Path, '8.mi_sz')); 
-mkdir(fullfile(Path, '8.mi_pair')); 
+mkdir(fullfile(Path, '6.mi_sz')); 
+mkdir(fullfile(Path, '6.mi_pair')); 
 javaaddpath('D:\Matlab2024a\matlab_jidt\infodynamics.jar');
 miCalc = javaObject('infodynamics.measures.continuous.kraskov.MutualInfoCalculatorMultiVariateKraskov1');
 % 使用KSG最近邻方法估计互信息
@@ -397,32 +444,42 @@ miCalc.initialise(1, 1);
 for i = 1:length(all_files)
     current_file = fullfile(all_files(i).folder, all_files(i).name);
     load(current_file);
-    for m = 1:15
-        for n = 1:15
-            miCalc.setObservations(octaveToJavaDoubleArray(nirsdata.oxyData(:, m)), octaveToJavaDoubleArray(nirsdata.oxyData(:, n)));
-            mi_matrix(m,n) = miCalc.computeAverageLocalOfObservations();
+    try
+        for m = 1:15
+            for n = 1:15
+                miCalc.setObservations(octaveToJavaDoubleArray(nirsdata.oxyData(:, m)), octaveToJavaDoubleArray(nirsdata.oxyData(:, n)));
+                mi_matrix(m,n) = miCalc.computeAverageLocalOfObservations();
+            end
+        end
+        mi_matrix(eye(size(mi_matrix)) == 1) = 0;  % 将主对角线元素设为0，符合BCT要求
+        save(fullfile(Path, '6.mi_sz', all_files(i).name), 'mi_matrix');
+        for p = 1:15
+            for q = 16:30
+                miCalc.setObservations(octaveToJavaDoubleArray(nirsdata.oxyData(:, p)), octaveToJavaDoubleArray(nirsdata.oxyData(:, q)));
+                mi_matrix(p, q-15) = miCalc.computeAverageLocalOfObservations();
+            end
+        end
+        save(fullfile(Path, '6.mi_pair', all_files(i).name), 'mi_matrix');
+    catch ME
+        % 检测 Java 数组越界异常，跳过当前文件
+        if contains(ME.message, 'java.lang.ArrayIndexOutOfBoundsException')
+            fprintf('文件 %s 发生 ArrayIndexOutOfBoundsException，跳过此文件。\n', all_files(i).name);
+            continue;
+        else
+            rethrow(ME); % 其他错误仍然报错
         end
     end
-    mi_matrix(eye(size(mi_matrix)) == 1) = 0;  % 将主对角线元素设为0，符合BCT要求
-    save(fullfile(Path, '8.mi_sz', all_files(i).name), 'mi_matrix');
-    for p = 1:15
-        for q = 16:30
-            miCalc.setObservations(octaveToJavaDoubleArray(nirsdata.oxyData(:, p)), octaveToJavaDoubleArray(nirsdata.oxyData(:, q)));
-            mi_matrix(p, q-15) = miCalc.computeAverageLocalOfObservations();
-        end
-    end
-    save(fullfile(Path, '8.mi_pair', all_files(i).name), 'mi_matrix');
 end
 
 %% Transfer entropy 有效连接分析
 Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
-all_files = dir(fullfile(Path, '4.roi', '*.mat'));
+all_files = dir(fullfile(Path, '3.roi', '*.mat'));
 te_matrix = zeros(15, 15);
 te_matrixA = zeros(15, 15);
 te_matrixB = zeros(15, 15);
-mkdir(fullfile(Path, '9.te_sz')); 
-mkdir(fullfile(Path, '9.te_pairab')); 
-mkdir(fullfile(Path, '9.te_pairba')); 
+mkdir(fullfile(Path, '6.te_sz')); 
+mkdir(fullfile(Path, '6.te_pairab')); 
+mkdir(fullfile(Path, '6.te_pairba')); 
 javaaddpath('D:\Matlab2024a\matlab_jidt\infodynamics.jar');
 teCalc = javaObject('infodynamics.measures.continuous.kraskov.TransferEntropyCalculatorKraskov');
 teCalc.initialise(1);  % 设置历史长度lag为 1 (Schreiber k=1)
@@ -438,7 +495,7 @@ for i = 1:length(all_files)
         end
     end
     te_matrix(eye(size(te_matrix)) == 1) = 0;  % 将主对角线元素设为0，符合BCT要求
-    save(fullfile(Path, '9.te_sz', all_files(i).name), 'te_matrix'); % participant SZ=B
+    save(fullfile(Path, '6.te_sz', all_files(i).name), 'te_matrix'); % participant SZ=B
 
     for p = 1:15
         for q = 16:30
@@ -448,9 +505,83 @@ for i = 1:length(all_files)
             te_matrixB(p, q-15) = teCalc.computeAverageLocalOfObservations();
         end
     end
-    save(fullfile(Path, '9.te_pairba', all_files(i).name), 'te_matrixA');
-    save(fullfile(Path, '9.te_pairab', all_files(i).name), 'te_matrixB');
+    save(fullfile(Path, '6.te_pairba', all_files(i).name), 'te_matrixA');
+    save(fullfile(Path, '6.te_pairab', all_files(i).name), 'te_matrixB');
 end
+
+%% 图论指标分析
+% 仅使用coherence matrix of SCZ做节点指标
+Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
+all_files = dir(fullfile(Path, '5.coh_sz', '*.mat'));
+% 使用GRETNA工具包计算
+% Wang, J., Wang, X., Xia, M., Liao, X., Evans, A., & He, Y. (2015). GRETNA: a graph theoretical network analysis toolbox for imaging connectomics. Frontiers in human neuroscience, 9, 386.
+mkdir(fullfile(Path, '7.sparse_cell')); 
+for i = 1:length(all_files)
+    current_file = fullfile(all_files(i).folder, all_files(i).name);
+    load(current_file);
+    OutputFile = fullfile(Path, '7.sparse_cell', all_files(i).name);  % 保存输出文件
+    SType = 1;   % 只保留正值连接
+    TType = 1;   % 稀疏度 thresholding
+    Thres = linspace(0.05, 0.4, 8);   % 8 个稀疏度阈值，从 0.05 到 0.4
+    NType = 1;   % 二值化网络
+    gretna_RUN_ThresMat(coherence_matrix, OutputFile, SType, TType, Thres, NType);
+end
+group1 = {'HZ001', 'HZ002', 'HZ004', 'HZ005', 'HZ006', 'SX001'}; % Experimental
+group2 = {}; % ControlActive
+group3 = {'HZ007', 'SX002'}; % ControlSham
+group4 = {'HZ003'}; % ControlResting
+all_files = dir(fullfile(Path, '7.sparse_cell', '*.mat'));
+subjects = unique(arrayfun(@(x) x.name(1:5), all_files, 'UniformOutput', false));
+num_subjects = length(subjects);
+task_conditions = {'R1', 'HA1', 'HB1', 'HEO1', 'HA2', 'HB2', 'HEO2', 'HA3', 'HB3', 'HEO3', 'HA4', 'HB4', 'HEO4', 'R2', 'HA5', 'HB5', 'HEO5'};
+D = cell(num_subjects, 257);   
+GE = cell(num_subjects, 257);
+
+for sub = 1:num_subjects
+    subject_id = subjects{sub};
+    subject_files = all_files(contains({all_files.name}, subject_id));
+    D{sub,1} = subject_id;
+    GE{sub,1} = subject_id;
+    % 分组编号
+    if ismember(subject_id, group1)
+        D{sub,2} = 1; GE{sub,2} = 1;
+    elseif ismember(subject_id, group2)
+        D{sub,2} = 2; GE{sub,2} = 2;
+    elseif ismember(subject_id, group3)
+        D{sub,2} = 3; GE{sub,2} = 3;
+    elseif ismember(subject_id, group4)
+        D{sub,2} = 4; GE{sub,2} = 4;
+    else
+        D{sub,2} = NaN; GE{sub,2} = NaN;
+    end
+    % 遍历 task_conditions，确保顺序一致
+    for cond_idx = 1:length(task_conditions)
+        cond_name = task_conditions{cond_idx};
+        % 寻找当前被试+条件组合的文件
+        target_pattern = sprintf('%s_%s.mat', subject_id, cond_name);
+        matched_file = subject_files(contains({subject_files.name}, target_pattern));
+        if ~isempty(matched_file)
+            load(fullfile(matched_file.folder, matched_file.name));
+            Dk = zeros(8, 15);
+            GEk = zeros(8, 15);
+            for k = 1:8
+                [~, dk] = gretna_node_degree(A{k});
+                [~, gEk] = gretna_node_global_efficiency(A{k});
+                Dk(k,:) = dk;
+                GEk(k,:) = gEk;
+            end
+            D(sub, (cond_idx-1)*15 + 3 : cond_idx*15 + 2) = num2cell(mean(Dk, 1));
+            GE(sub, (cond_idx-1)*15 + 3 : cond_idx*15 + 2) = num2cell(mean(GEk, 1));
+        else
+            % 如果该条件缺失，不写入任何值，保留空单元格
+            continue;
+        end
+    end
+end
+
+mkdir(fullfile(Path, '7.graph_indices')); 
+xlswrite(fullfile(Path, '7.graph_indices', 'nodal_degree.xlsx'), D);
+xlswrite(fullfile(Path, '7.graph_indices', 'nodal_efficiency.xlsx'), GE);
 
 %% 自定义函数: hmrR_MotionCorrectTDDR
 function [dodTDDR] = hmrR_MotionCorrectTDDR(dod, SD, sample_rate)
