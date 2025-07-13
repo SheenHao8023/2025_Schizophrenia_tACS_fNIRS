@@ -1,0 +1,117 @@
+---
+title: "symptom_statistics"
+author: "XinHao"
+date: "2025-07-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+# 自动安装和加载所需包
+pkg_list <- c("ggplot2", "readxl", "tidyr", "dplyr", "ggprism", 
+              "patchwork", "stringr", "lme4", "emmeans", "bruceR")
+sapply(pkg_list, function(pkg) {
+  if (!requireNamespace(pkg, quietly = TRUE)) install.packages(pkg)
+  library(pkg, character.only = TRUE)
+})
+
+# 读取数据
+file_path <- "C:/Users/XinHao/Desktop/tES_SZ_Symptom/symptom_data.xlsx"
+data <- read_excel(file_path)
+
+# 设置 Group 和 Session 为因子
+data$Group <- factor(data$Group, levels = 1:5)
+data$Session <- factor(data$Session, levels = c("Pre", "Post"))
+
+# 指定要分析的因变量
+measure_vars <- c(
+  "PANSS_Total", "PANSS_Negative", "PANSS_Positive",
+  "PANSS_Affective", "PANSS_Cognitive", "P1", "P3", "N1", "N2", "N4", "BNSS",
+  "PSP", "WHOQOL_BREF", "CGI_S", "AHRS", "Token(permin)")
+
+# 过滤确实存在的列，避免报错
+measure_vars <- measure_vars[measure_vars %in% colnames(data)]
+
+for (measure in measure_vars){
+  Model <- MANOVA(data, subID="ID", dv=measure, within = 'Session', between = 'Group', 
+                  sph.correction = "GG", aov.include = FALSE, digits = 3) %>%
+    EMMEANS(effect = 'Session', by = "Group",
+            contrast = "pairwise", p.adjust = "fdr", model.type = "multivariate") %>%
+    EMMEANS(effect = "Group", by = 'Session',
+            contrast = "pairwise", p.adjust = "fdr", model.type = "multivariate") 
+}
+
+# 颜色和主题设置
+color_map <- c("Pre" = "#f47c7c", "Post" = "#80d6ff")
+theme_custom <- theme_minimal(base_size = 12) +
+  theme(
+    panel.grid = element_blank(),
+    axis.line = element_line(color = 'black'),
+    axis.ticks = element_line(color = 'black'),
+    axis.text = element_text(color = "black"),
+    legend.position = "top",
+    axis.title.y = element_blank(),  # ❌ 不显示 Y 轴标题
+    plot.title = element_text(hjust = 0.5, size = 12)  # ⬇️ 缩小图标题字体
+  )
+
+# 生成图列表
+plot_list <- list()
+
+# 指定要作图的因变量
+measure_vars <- c(
+  "IllnessDuration(years)", "PANSS_Total", "PANSS_Negative", "PANSS_Positive",
+  "PANSS_Affective", "PANSS_Cognitive", "P1", "P3", "N1", "N2", "N4", "BNSS",
+  "HAMD", "PSP", "WHOQOL_BREF", "RSESE", "CGI_S", "AHRS", "Token(permin)",
+  "CBCT_Total", "CBCT_TMT", "CBCT_DSST", "CBCT_CPT", "CBCT_DST"
+)
+
+for (measure in measure_vars) {
+  p <- ggplot(data, aes(x = Group, y = .data[[measure]], fill = Session)) +
+    stat_summary(fun = mean, geom = "bar",
+                 position = position_dodge(width = 0.8), width = 0.7,
+                 color = "black", size = 0.4) +
+    stat_summary(fun.data = function(x) {
+      m <- mean(x)
+      s <- sd(x)
+      data.frame(y = m, ymin = m - s, ymax = m + s)
+    }, geom = "errorbar",
+       position = position_dodge(width = 0.8),
+       width = 0.3, size = 0.5) +
+    scale_fill_manual(values = color_map) +
+    labs(x = "Group", title = measure, fill = "Session") +
+    theme_custom
+  
+  plot_list[[measure]] <- p
+}
+
+# 拼成大图：4行×6列
+big_plot <- wrap_plots(plot_list, nrow = 4, ncol = 6, guides = "collect") &
+  theme(legend.position = "bottom")
+
+# 显示图
+print(big_plot)
+
+# 保存大图（可选）
+ggsave("All_Measures_Group_Session_Barplot.png", big_plot, width = 24, height = 16, dpi = 300)
+
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
