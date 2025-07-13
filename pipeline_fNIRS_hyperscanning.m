@@ -526,10 +526,12 @@ for i = 1:length(all_files)
     NType = 1;   % 二值化网络
     gretna_RUN_ThresMat(coherence_matrix, OutputFile, SType, TType, Thres, NType);
 end
-group1 = {'HZ001', 'HZ002', 'HZ004', 'HZ005', 'HZ006', 'SX001'}; % Experimental
-group2 = {}; % ControlActive
-group3 = {'HZ007', 'SX002'}; % ControlSham
-group4 = {'HZ003'}; % ControlResting
+group1 = {'HZ001', 'HZ002', 'HZ004', 'HZ005', 'HZ006', 'SX001', 'SX007', 'SX008', 'SX009', 'SX013', 'SX016', 'SX018'}; % Experimental
+group2 = {'SX015', 'SX017', 'SX019'}; % ControlActive
+group3 = {'HZ007', 'SX002', 'SX010', 'SX011', 'SX012'}; % ControlSham
+group4 = {'HZ003', 'SX006'}; % ControlResting
+group5 = {'SX003', 'SX004', 'SX005', 'SX014'}; % ControlBehavior
+
 all_files = dir(fullfile(Path, '7.sparse_cell', '*.mat'));
 subjects = unique(arrayfun(@(x) x.name(1:5), all_files, 'UniformOutput', false));
 num_subjects = length(subjects);
@@ -551,6 +553,8 @@ for sub = 1:num_subjects
         D{sub,2} = 3; GE{sub,2} = 3;
     elseif ismember(subject_id, group4)
         D{sub,2} = 4; GE{sub,2} = 4;
+    elseif ismember(subject_id, group5)
+        D{sub,2} = 5; GE{sub,2} = 5;
     else
         D{sub,2} = NaN; GE{sub,2} = NaN;
     end
