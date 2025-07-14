@@ -26,7 +26,7 @@ sapply(pkg_list, function(pkg) {
 
 # 读取数据
 file_path <- "C:/Users/XinHao/Desktop/tES_SZ_Symptom/symptom_data.xlsx"
-data <- read_excel(file_path)
+data <- read_excel(file_path, sheet = 1)
 
 # 设置 Group 和 Session 为因子
 data$Group <- factor(data$Group, levels = 1:5)
