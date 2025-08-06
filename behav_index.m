@@ -60,8 +60,28 @@ for i = 1:numel(subfolders)
 
         for block = 1:5 % 遍历所有blocks
             for condition = 1:3 % 遍历所有conditions
+
                 pattern = sprintf('%d_%d_*_*.mat', block, condition);
                 trials = dir(fullfile(filepath, pattern));
+
+                %%%%%%%%%%%%%%%%%%%%%%%%%%
+                %%%%%%%%%%%%%%%%%%%%%%%%%%
+                % 若只考虑8个trials
+                % keep = false(length(trials), 1);  % 遍历查找
+                % for i = 1:length(trials)
+                %     fname = trials(i).name;
+                %     parts = split(fname, '_');
+                %     if length(parts) >= 4
+                %         thirdPart = str2double(parts{3});
+                %         if ~isnan(thirdPart) && thirdPart >= 2 && thirdPart <= 9
+                %             keep(i) = true;  % 标记保留
+                %         end
+                %     end
+                % end
+                % trials = trials(keep);  % 不考虑trial 1/10的文件
+                %%%%%%%%%%%%%%%%%%%%%%%%%%
+                %%%%%%%%%%%%%%%%%%%%%%%%%%
+
                 % 跳过文件缺失的block-condition配对
                 if isempty(trials)
                     summaryWS{idx_sub, idx_bc} = NaN;
@@ -114,65 +134,90 @@ for i = 1:numel(subfolders)
                     A.RT = cellfun(shuju, x);
                     A.RT(isnan(A.RT)) = [];
                     B.RT(isnan(B.RT)) = [];
-                    B.IOI = diff(B.RT);
+                    % 这里为了将设备时间统一到零点，先计算一遍RT
                     A.IOI = diff(A.RT);
-                    B.Trials(:, idx) = {B.IOI};
+                    B.IOI = diff(B.RT);
                     A.Trials(:, idx) = {A.IOI};
-                    B.RT = cumsum(B.IOI);
-                    A.RT = cumsum(A.IOI);
-    
+                    B.Trials(:, idx) = {B.IOI};
+                    A.RT=cumsum(A.IOI);
+                    B.RT=cumsum(B.IOI);
+
                     %% 时间序列预处理和对齐
-                    if A.RT(1) < 250 || B.RT(1) < 250
-                        A.IOI(A.RT < 250) = [];
-                        B.IOI(B.RT < 250) = [];
-                        A.RT = cumsum(A.IOI);
-                        B.RT = cumsum(B.IOI);
+
+                    % 未按指导语进行实验，前八拍未跟上
+                    if A.RT(1) > 4000 || B.RT(1) > 4000
+                        display("RT(1) too large, skip trial, idx = " + idx);
+                        skipped = skipped + 1;
+                        continue;  % 跳过当前循环，进入下一个trial
                     end
 
-                    if A.RT(1) > 2000 || B.RT(1) > 2000
-                        pair.deletion8(idx) = true;
-                    else
-                        pair.deletion8(idx) = false;
+                    % 剔除初始RT小于500ms的抢按（这些点不应该参与IOI计算）
+                    if A.RT(1) < 500 || B.RT(1) < 500
+                        A.RT(A.RT < 250) = [];  
+                        B.RT(B.RT < 250) = [];    
                     end
 
-                    if numel(B.RT) < numel(A.RT)
-                        A.IOI(numel(B.RT)+1:end) = [];
-                        A.RT(numel(B.RT)+1:end) = [];
-                    else
-                        B.IOI(numel(A.RT)+1:end) = [];
-                        B.RT(numel(A.RT)+1:end) = [];
+                    if numel(B.RT) <= numel(A.RT)  % B短时，将A从距离B起始最小的点截等长
+                        [~, startIdx] = min(abs(A.RT - B.RT(1)));
+                        if startIdx + numel(B.RT) - 1 <= numel(A.RT)
+                            A.RT = A.RT(startIdx : startIdx + numel(B.RT) - 1);
+                        else  % 如果A剩余长度不够，再截短B使两者长度相等
+                            len = numel(A.RT) - startIdx + 1;
+                            A.RT = A.RT(startIdx : end);
+                            B.RT = B.RT(1:len);
+                        end
+                    else  % A短时，寻找每个点在B的距离最小点
+                        used = false(size(B.RT));
+                        Bnew = zeros(size(A.RT));
+                        for point = 1:numel(A.RT)
+                            costs = abs(B.RT - A.RT(point)) + used * 1e99; % 大惩罚确保已用点不被选中
+                            [~, nearidx] = min(costs);
+                            Bnew(point) = B.RT(nearidx);
+                            used(nearidx) = true;
+                        end
+                        B.RT = sort(Bnew);
                     end
 
-                    points = numel(A.RT);
+                    % AB一定等长，统一计算 IOI
+                    A.IOI = diff(A.RT);
+                    B.IOI = diff(B.RT);
+
                     pair.Aoutlier(idx,1) = sum(nonzeros(A.IOI <= median(A.IOI) - 0.5 * median(A.IOI)));
                     pair.Aoutlier(idx,2) = sum(nonzeros(A.IOI >= median(A.IOI) + 0.5 * median(A.IOI)));
                     pair.Boutlier(idx,1) = sum(nonzeros(B.IOI <= median(B.IOI) - 0.5 * median(B.IOI)));
                     pair.Boutlier(idx,2) = sum(nonzeros(B.IOI >= median(B.IOI) + 0.5 * median(B.IOI)));
     
-                    %% 计算四种行为指标：IC WS RD TV，只有ab的数据都正确记录才会计算
+                    %% 计算四种行为指标：IC WS RD TV，从前8拍结束后的点算起，不一定是24个点
+                    [~, closestIdx] = min(abs(A.RT - 4000));
+                    % 保证后面还有数据点可用，至少两个RT的点：(closestIdx+1:end)
+                    if closestIdx+2 >= length(A.RT)
+                        warning("A.RT 中 4000ms之后几乎没有有效数据，跳过这个 trial");
+                        skipped = skipped + 1;
+                        continue;
+                    end
                     % index1: Within-subject Tapping Stability
                     % For B，公式：sqrt(1/std(IOI))
-                    pair.WS(idx,:) = sqrt(1 / std(B.IOI));
+                    pair.WS(idx,:) = sqrt(1 / std(B.IOI(closestIdx+1:end)));
                     % index2: Interpersonal Consistency (Synchronization Index)
-                    phaseA = t2phases(cumsum(500 * ones(points, 1)), A.RT);
-                    phaseB = t2phases(cumsum(500 * ones(points, 1)), B.RT);
+                    phaseA = t2phases(cumsum(500 * ones(numel(A.RT(closestIdx+1:end)), 1)), A.RT(closestIdx+1:end));
+                    phaseB = t2phases(cumsum(500 * ones(numel(B.RT(closestIdx+1:end)), 1)), B.RT(closestIdx+1:end));
                     phase2keep = min(length(phaseA), length(phaseB));
                     dtheta = phaseA(1:phase2keep) - phaseB(1:phase2keep);
                     pair.IC(idx,:) = abs(mean(exp(1i * dtheta)));
                     % index3: Rhythm Deviation
                     % For B，计算实际 IOI 与目标500ms之间的绝对差的中位数
-                    pair.RD(idx,:) = median(abs(B.IOI - 500));
+                    pair.RD(idx,:) = median(abs(B.IOI(closestIdx+1:end) - 500));
                     % index4: Tapping Variability
                     % 以 A 为参考，计算每次敲击时刻差（asynchrony）的绝对值，再计算这些值与其中位数之间差值的中位数（MAD）
-                    asynchrony = abs(B.RT - A.RT);
+                    asynchrony = abs(B.RT(closestIdx+1:end) - A.RT(closestIdx+1:end));
                     pair.TV(idx,:) = median(abs(asynchrony - median(asynchrony)));
                 end % trials 遍历结束
 
             % 剔除三个MAD的异常值后求平均数
-            %summaryWS{idx_sub, idx_bc} = mean(pair.WS(abs(pair.WS - median(pair.WS, 'omitnan')) <= 3 * median(abs(pair.WS - median(pair.WS, 'omitnan')), 'omitnan')), 'omitnan'); 
-            %summaryIC{idx_sub, idx_bc} = mean(pair.IC(abs(pair.IC - median(pair.IC, 'omitnan')) <= 3 * median(abs(pair.IC - median(pair.IC, 'omitnan')), 'omitnan')), 'omitnan'); 
-            %summaryRD{idx_sub, idx_bc} = mean(pair.RD(abs(pair.RD - median(pair.RD, 'omitnan')) <= 3 * median(abs(pair.RD - median(pair.RD, 'omitnan')), 'omitnan')), 'omitnan');
-            %summaryTV{idx_sub, idx_bc} = mean(pair.TV(abs(pair.TV - median(pair.TV, 'omitnan')) <= 3 * median(abs(pair.TV - median(pair.TV, 'omitnan')), 'omitnan')), 'omitnan');
+            % summaryWS{idx_sub, idx_bc} = mean(pair.WS(abs(pair.WS - median(pair.WS, 'omitnan')) <= 3 * median(abs(pair.WS - median(pair.WS, 'omitnan')), 'omitnan')), 'omitnan'); 
+            % summaryIC{idx_sub, idx_bc} = mean(pair.IC(abs(pair.IC - median(pair.IC, 'omitnan')) <= 3 * median(abs(pair.IC - median(pair.IC, 'omitnan')), 'omitnan')), 'omitnan'); 
+            % summaryRD{idx_sub, idx_bc} = mean(pair.RD(abs(pair.RD - median(pair.RD, 'omitnan')) <= 3 * median(abs(pair.RD - median(pair.RD, 'omitnan')), 'omitnan')), 'omitnan');
+            % summaryTV{idx_sub, idx_bc} = mean(pair.TV(abs(pair.TV - median(pair.TV, 'omitnan')) <= 3 * median(abs(pair.TV - median(pair.TV, 'omitnan')), 'omitnan')), 'omitnan');
             % 求中位数，异常值不敏感
             summaryWS{idx_sub, idx_bc} = median(pair.WS, 'omitnan'); 
             summaryIC{idx_sub, idx_bc} = median(pair.IC, 'omitnan'); 
