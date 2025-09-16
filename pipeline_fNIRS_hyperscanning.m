@@ -1,11 +1,20 @@
 %% 需要将下面的工具包添加至路径
-% easyh5: https://github.com/fangq/easyh5
 % jsnirfy: https://github.com/NeuroJSON/jsnirfy/tree/4e7de160cdb9a0357c8e9e7d882a190bf6e2f51a?tab=readme-ov-file
 % Homer3: https://github.com/BUNPC/Homer3
 % NIRS-KIT: https://github.com/bnuhouxin/NIRS-KIT
 % MVGC: https://github.com/lcbarnett/MVGC1
 % JIDT: https://github.com/jlizier/jidt,   运行此工具包需要安装Java
 % GRETNA: https://github.com/sandywang/GRETNA
+clc;        % 清除命令行
+clear;      % 清除工作区变量
+close all;  % 关闭所有图窗
+addpath(genpath('D:\Matlab2025a\toolbox'));
+addpath(genpath('D:\Matlab2025a\matlab_jsnirfy'));
+addpath(genpath('D:\Matlab2025a\matlab_homer3'));
+addpath(genpath('D:\Matlab2025a\matlab_nirskit'));
+addpath(genpath('D:\Matlab2025a\matlab_mvgc'));
+addpath(genpath('D:\Matlab2025a\matlab_jidt'));
+addpath(genpath('D:\Matlab2025a\matlab_gretna'));
 
 %% 将所有.nirs文件转换为.snirf标准文件
 Homer3 % 运行homer3，弹出后选择no不转换，再关闭Homer3 GUI
@@ -31,7 +40,6 @@ end
 %% 数据分段
 Path = 'C:/Users/XinHao/Desktop/tES_SZ_fNIRS/'; 
 all_files = dir(fullfile(Path, '1.snirfdata_full', '*.snirf'));
-oldapparatus = {'HZ001', 'HZ004', 'HZ005', 'HZ006', 'HZ007', 'SX001', 'SX002', 'SX003', 'SX004', 'SX005', 'SX006', 'SX007', 'SX008'}; 
 % Only Hearing each other needs to distinguish markers in different apparatus
 newapparatus = {'HZ002', 'HZ003'};
 for i = 1:length(all_files)
@@ -59,10 +67,10 @@ for i = 1:length(all_files)
 
     elseif  endsWith(filename, 'tasking') && filename(7) == '1' % pre test tasking state including 4 conditions
         timeseries = Data.nirs.data.time;
-        if ismember(filename(1:5), oldapparatus)
-            time_data = Data.nirs.stim2.data(:, 1);
+        if ismember(filename(1:5), newapparatus)
+            time_data = Data.nirs.stim1.data(:, 1);
         else
-            time_data = Data.nirs.stim1.data(:, 1);  %newapparatus
+            time_data = Data.nirs.stim2.data(:, 1);  %oldapparatus
         end
         suffixes = {'_HEO1', '_HEO2', '_HEO3', '_HEO4'}; % Hearing each other
         if size(time_data, 1) <= 4
@@ -148,10 +156,10 @@ for i = 1:length(all_files)
     else % post test tasking state including 1 condition
         timeseries = Data.nirs.data.time;
         suffixes = {'_HEO5', '_HA5', '_HB5'}; 
-        if ismember(filename(1:5), oldapparatus)
-            stim_times = {'stim2', 'stim3', 'stim4'};  
+        if ismember(filename(1:5), newapparatus)
+            stim_times = {'stim1', 'stim3', 'stim4'};  
         else
-            stim_times = {'stim1', 'stim3', 'stim4'};    %newapparatus
+            stim_times = {'stim2', 'stim3', 'stim4'};    %oldapparatus
         end
         for j = 1:3
             time_data = Data.nirs.(stim_times{j}).data(:, 1);
@@ -278,11 +286,14 @@ task_conditions = {'R1', 'HA1', 'HB1', 'HEO1', 'HA2', 'HB2', 'HEO2', 'HA3', 'HB3
 result_matrix = cell(num_subjects, 2 + 17 * 30);
 % 用于卷积的血流动力学函数 HRF
 [hrf, ~] = spm_hrf(0.02); % 采样周期 T=0.02
-group1 = {'HZ001', 'HZ002', 'HZ004', 'HZ005', 'HZ006', 'SX001', 'SX007', 'SX008', 'SX009', 'SX013', 'SX016', 'SX018'}; % Experimental
-group2 = {'SX015', 'SX017', 'SX019'}; % ControlActive
-group3 = {'HZ007', 'SX002', 'SX010', 'SX011', 'SX012'}; % ControlSham
-group4 = {'HZ003', 'SX006'}; % ControlResting
-group5 = {'SX003', 'SX004', 'SX005', 'SX014'}; % ControlBehavior
+
+group1 = {'HZ001', 'HZ002', 'HZ004', 'HZ005', 'HZ006', 'SX001', 'SX007', 'SX008', 'SX009', 'SX013', 'SX016', 'SX018', 'SX020', 'SX022'
+    }; % Experimental
+group2 = {'SX015', 'SX017', 'SX019', 'SX021', 'SX025', 'SX027', 'SX028'}; % ControlActive
+group3 = {'HZ007', 'SX002', 'SX010', 'SX011', 'SX012', 'SX023'}; % ControlSham
+group4 = {'HZ003', 'SX006', 'SX026', 'SX029'}; % ControlResting
+group5 = {'SX003', 'SX004', 'SX005', 'SX014', 'SX024', 'SX030'}; % ControlBehavior
+
 for sub = 1:num_subjects
     subject_id = subjects{sub};
 
