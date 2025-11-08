@@ -221,8 +221,12 @@ for i = 1:numel(subfolders)
             % summaryRD{idx_sub, idx_bc} = mean(pair.RD(abs(pair.RD - median(pair.RD, 'omitnan')) <= 3 * constant * median(abs(pair.RD - median(pair.RD, 'omitnan')), 'omitnan')), 'omitnan');
             % summaryTV{idx_sub, idx_bc} = mean(pair.TV(abs(pair.TV - median(pair.TV, 'omitnan')) <= 3 * constant * median(abs(pair.TV - median(pair.TV, 'omitnan')), 'omitnan')), 'omitnan');
             % 求中位数，异常值不敏感
-            summaryWS{idx_sub, idx_bc} = median(pair.WS, 'omitnan'); 
-            summaryIC{idx_sub, idx_bc} = median(pair.IC, 'omitnan'); 
+            if median(pair.WS, 'omitnan') ~= 0
+                summaryWS{idx_sub, idx_bc} = median(pair.WS, 'omitnan'); 
+            end
+            if median(pair.IC, 'omitnan') ~= 0
+                summaryIC{idx_sub, idx_bc} = median(pair.IC, 'omitnan'); 
+            end
             summaryRD{idx_sub, idx_bc} = median(pair.RD, 'omitnan');
             summaryTV{idx_sub, idx_bc} = median(pair.TV, 'omitnan');
             idx_bc = idx_bc + 1; % 更新列索引
@@ -238,14 +242,14 @@ for i = 1:numel(subfolders)
     SummaryTV = [SummaryTV; summaryTV(2:end, :)];
 end %subfolder遍历结束
 
-xlswrite("C:/Users/XinHao/Desktop/tES_SZ_Behav/behavior_data.xlsx", SummaryIC, 'IC');
-xlswrite("C:/Users/XinHao/Desktop/tES_SZ_Behav/behavior_data.xlsx", SummaryWS, 'WS');
-xlswrite("C:/Users/XinHao/Desktop/tES_SZ_Behav/behavior_data.xlsx", SummaryRD, 'RD');
-xlswrite("C:/Users/XinHao/Desktop/tES_SZ_Behav/behavior_data.xlsx", SummaryTV, 'TV');
-%writecell(SummaryIC, "C:/Users/XinHao/Desktop/tES_SZ_Behav/behavior_data.xlsx", 'Sheet', 'IC');
-%writecell(SummaryWS, "C:/Users/XinHao/Desktop/tES_SZ_Behav/behavior_data.xlsx", 'Sheet', 'WS');
-%writecell(SummaryRD, "C:/Users/XinHao/Desktop/tES_SZ_Behav/behavior_data.xlsx", 'Sheet', 'RD');
-%writecell(SummaryTV, "C:/Users/XinHao/Desktop/tES_SZ_Behav/behavior_data.xlsx", 'Sheet', 'TV');
+% xlswrite("C:/Users/XinHao/Desktop/tES_SZ_Behav/behavior_data.xlsx", SummaryIC, 'IC');
+% xlswrite("C:/Users/XinHao/Desktop/tES_SZ_Behav/behavior_data.xlsx", SummaryWS, 'WS');
+% xlswrite("C:/Users/XinHao/Desktop/tES_SZ_Behav/behavior_data.xlsx", SummaryRD, 'RD');
+% xlswrite("C:/Users/XinHao/Desktop/tES_SZ_Behav/behavior_data.xlsx", SummaryTV, 'TV');
+writecell(SummaryIC, "C:/Users/XinHao/Desktop/tES_SZ_Behav/behavior_data.xlsx", 'Sheet', 'IC');
+writecell(SummaryWS, "C:/Users/XinHao/Desktop/tES_SZ_Behav/behavior_data.xlsx", 'Sheet', 'WS');
+writecell(SummaryRD, "C:/Users/XinHao/Desktop/tES_SZ_Behav/behavior_data.xlsx", 'Sheet', 'RD');
+writecell(SummaryTV, "C:/Users/XinHao/Desktop/tES_SZ_Behav/behavior_data.xlsx", 'Sheet', 'TV');
 
 %% 自定义时序转换 t2phases 函数
 function theta2 = t2phases(metronome, T)
