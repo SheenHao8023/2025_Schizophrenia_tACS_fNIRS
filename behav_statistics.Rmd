@@ -11,8 +11,7 @@ pkg_list <- c("ggplot2", "readxl", "tidyr", "dplyr", "ggprism",
               "patchwork", "stringr", "lme4", "emmeans", "bruceR")
 sapply(pkg_list, function(pkg) {
   if (!requireNamespace(pkg, quietly = TRUE)) install.packages(pkg)
-  library(pkg, character.only = TRUE)
-})
+  library(pkg, character.only = TRUE)})
 
 # ----------------- 1. 参数定义 -----------------
 file_path <- "C:/Users/XinHao/Desktop/tES_SZ_Behav/behavior_data.xlsx"
@@ -21,16 +20,14 @@ sheets <- c("IC", "WS", "RD", "TV")
 
 # ----------------- 2. 自定义主题 -----------------
 theme_custom <- theme_prism(axis_text_angle = 0) +
-  theme(
-    panel.grid = element_blank(),
+  theme(panel.grid = element_blank(),
     axis.line = element_line(color = 'black', size = 0.75),
     axis.ticks = element_line(color = 'black', size = 0.75),
     axis.text = element_text(size = 10, color = "black"),
     axis.title = element_text(size = 12),
     strip.background = element_blank(),
     strip.text = element_text(size = 12),
-    legend.position = "right"
-  )
+    legend.position = "right")
 
 # ----------------- 3. 遍历每个 sheet -----------------
 for (sheet in sheets) {
@@ -38,54 +35,38 @@ for (sheet in sheets) {
   
   # ----- 在一开始就对 Group 做盲法重编码并设为 factor（确保模型 & 图一致） -----
   df_wide <- df_wide_raw %>%
-    mutate(
-      Group = as.character(Group),
-      Group = recode(Group,
-                     "1" = "7", "2" = "9", "3" = "8", "4" = "6", "5" = "10"),
-      Group = factor(Group, levels = c("6", "7", "8", "9", "10"))
-    )
-  
+    mutate(Group = as.character(Group),
+      Group = recode(Group,"1" = "7", "2" = "9", "3" = "8", "4" = "6", "5" = "10"),
+      Group = factor(Group, levels = c("6", "7", "8", "9", "10")))
+
   # ----------------- 4. MANOVA分析 -----------------
   # ---- 模型 A：只用 Block 1 和 Block 5 ----
   df_A_wide <- df_wide %>% select(ID, Group, paste0("B1C", 1:3), paste0("B5C", 1:3))
-  Model_A <- MANOVA(df_A_wide,
-                    dvs = c("B1C1", "B1C2", "B1C3", "B5C1", "B5C2", "B5C3"),
-                    dvs.pattern = "B(.)C(.)",
-                    within = c('Block', 'Condition'),
-                    between = 'Group',
-                    sph.correction = "GG",
-                    aov.include = FALSE,
-                    digits = 3) %>%
+  Model_A <- MANOVA(df_A_wide, dvs = c("B1C1", "B1C2", "B1C3", "B5C1", "B5C2", "B5C3"),
+                    dvs.pattern = "B(.)C(.)", within = c('Block', 'Condition'),
+                    between = 'Group', sph.correction = "GG",
+                    aov.include = FALSE, digits = 3) %>%
     EMMEANS(effect = c("Group", "Block"), by = "Condition",
             contrast = "pairwise", p.adjust = "fdr", model.type = "multivariate")
   
   # ---- 模型 B：Block 1 到 Block 4 ----
   df_B_wide <- df_wide %>% select(ID, Group, unlist(lapply(1:4, function(b) paste0("B", b, "C", 1:3))))
-  Model_B <- MANOVA(df_B_wide,
-                    dvs = "B1C1:B4C3",
-                    dvs.pattern = "B(.)C(.)",
-                    within = c('Block', 'Condition'),
-                    between = 'Group',
-                    sph.correction = "GG",
-                    aov.include = FALSE,
-                    digits = 3) %>%
+  Model_B <- MANOVA(df_B_wide, dvs = "B1C1:B4C3", dvs.pattern = "B(.)C(.)",
+                    within = c('Block', 'Condition'), between = 'Group',
+                    sph.correction = "GG", aov.include = FALSE, digits = 3) %>%
     EMMEANS(effect = c("Group", "Block"), by = "Condition",
             contrast = "pairwise", p.adjust = "fdr", model.type = "multivariate")
   
   # 转为长格式
   df_long <- df_wide %>%
-    pivot_longer(cols = starts_with("B"),
-                 names_to = "BlockCond",
-                 values_to = "Y") %>%
-    mutate(
-      Block = as.integer(str_extract(BlockCond, "(?<=B)\\d")),
+    pivot_longer(cols = starts_with("B"), names_to = "BlockCond", values_to = "Y") %>%
+    mutate(Block = as.integer(str_extract(BlockCond, "(?<=B)\\d")),
       Condition_code = str_extract(BlockCond, "(?<=C)\\d"),
       Condition = recode(Condition_code,"1" = "HA","2" = "HB","3" = "HEO"),
       Session = ifelse(Block <= 4, "Pre", "Post"),
       Subject = as.factor(ID),
       Condition = factor(Condition, levels = c("HA", "HB", "HEO")),
-      Session = factor(Session, levels = c("Pre", "Post"))
-    ) %>%
+      Session = factor(Session, levels = c("Pre", "Post"))) %>%
     dplyr::select(Subject, Group, Session, Block, Condition, Y)
 
   # 创建每个 Condition 下的两张图（共 6 图）
@@ -93,16 +74,13 @@ for (sheet in sheets) {
   df_B_long_subset <- df_long %>% filter(Session == "Pre")
   plot_list <- list()
   for (cond in levels(df_long$Condition)) {
-    
     # ------- 图1：Block × Group -------
     df_B_cond <- df_B_long_subset %>% filter(Condition == cond) %>%
       mutate(Block = factor(Block, levels = 1:4,
                             labels = c("Baseline", "Online1", "Online2", "Offline")))
-    
     p_B <- ggplot(df_B_cond, aes(x = Group, y = Y, fill = Block)) +
       stat_summary(fun = mean, geom = "bar",
-                   position = position_dodge(width = 0.8), width = 0.7,
-                   colour = NA, size = 0.5) +
+                   position = position_dodge(width = 0.8), width = 0.7, colour = NA, size = 0.5) +
       stat_summary(fun.data = mean_se, geom = "errorbar",
                    position = position_dodge(width = 0.8), width = 0.5, size = 0.5) +
       labs(x = "Group", y = sheet, fill = "Block", title = paste0(cond, " - Block")) +
@@ -113,10 +91,8 @@ for (sheet in sheets) {
     df_A_cond <- df_A_long_subset %>% filter(Condition == cond) %>%
       mutate(Block_label = ifelse(Session == "Pre", "Pre-test", "Post-test"),
              Block_label = factor(Block_label, levels = c("Pre-test", "Post-test")))
-    
     p_A <- ggplot(df_A_cond, aes(x = Group, y = Y, fill = Block_label)) +
-      stat_summary(fun = mean, geom = "bar",
-                   position = position_dodge(width = 0.8), width = 0.7,
+      stat_summary(fun = mean, geom = "bar", position = position_dodge(width = 0.8), width = 0.7,
                    colour = NA, size = 0.5) +
       stat_summary(fun.data = mean_se, geom = "errorbar",
                    position = position_dodge(width = 0.8), width = 0.5, size = 0.5) +
@@ -127,16 +103,57 @@ for (sheet in sheets) {
     plot_list[[paste0(cond, "_Block")]] <- p_B
     plot_list[[paste0(cond, "_Session")]] <- p_A
   }
-  
   # 组合成 2行 × 3列
   plot_list <- plot_list[c(1, 3, 5, 2, 4, 6)]
   combined_plot <- wrap_plots(plot_list, ncol = 3)
   print(combined_plot)
-  
   # 保存图像
   ggsave(filename = paste0(output_dir, "Plot_", sheet, ".png"),
          plot = combined_plot, width = 16, height = 10, dpi = 300)
 }
 
+```
+
+```{r diff}
+plot_list_diff <- list()
+for (sheet in sheets) {
+  df_wide_raw <- read_excel(file_path, sheet = sheet)
+  
+  df_wide_raw <- df_wide_raw %>%
+  mutate(Group = as.character(Group),
+      Group = recode(Group,"1" = "7", "2" = "9", "3" = "8", "4" = "6", "5" = "10"),
+      Group = factor(Group, levels = c("6", "7", "8", "9", "10")))
+  df_eff <- df_wide_raw %>%
+  mutate(Subject = as.factor(ID),
+    Diff1  = B5C1 - B1C1, Diff2  = B5C2 - B1C2, Diff3 = B5C3 - B1C3, Group = factor(Group))
+  Model_Diff <- MANOVA(df_eff, dvs = "Diff1:Diff3", dvs.pattern = "Diff(.)",
+                    within = 'Condition', between = 'Group', sph.correction = "GG",
+                    aov.include = FALSE, digits = 3) %>%
+  EMMEANS(effect = "Group", by = "Condition",
+          contrast = "pairwise", p.adjust = "fdr", model.type = "multivariate")
+  
+  df_eff_long <- df_eff %>%
+  select(Subject, Group, Diff1, Diff2, Diff3) %>%
+  pivot_longer(cols = starts_with("Diff"), names_to = "Condition",
+               names_prefix = "Diff", values_to = "Effect") %>%
+  mutate(Condition = recode(Condition, "1" = "HA", "2" = "HB", "3" = "HEO"),
+    Condition = factor(Condition, levels = c("HA", "HB", "HEO")), Group = as.factor(Group))
+
+  # 2) 绘图（每个 Group 有 3 个 bar，代表 3 个 Condition）
+  p_effect <- ggplot(df_eff_long, aes(x = Group, y = Effect, fill = Condition)) +
+    stat_summary(fun = mean, geom = "bar", position = position_dodge(width = 0.8), width = 0.7,
+                 colour = NA, size = 0.5) +
+    stat_summary(fun.data = mean_se, geom = "errorbar",
+                 position = position_dodge(width = 0.8), width = 0.25, size = 0.5) +
+    labs(x = "Group", y = paste0(sheet, " effect"), fill = "Condition",
+         title = paste0(sheet, " effect")) +
+    scale_fill_brewer(palette = "Pastel2") +
+    theme_custom
+  plot_list_diff[[sheet]] <- p_effect
+}
+combined_plot_all <- wrap_plots(plot_list_diff, ncol = 2, nrow = 2) 
+print(combined_plot_all)
+ggsave(filename = paste0(output_dir, "Plots_effect.png"),
+       plot = combined_plot_all, width = 16, height = 12, dpi = 600)
 ```
 
