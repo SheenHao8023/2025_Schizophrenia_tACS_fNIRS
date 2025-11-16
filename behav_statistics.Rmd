@@ -81,23 +81,39 @@ for (sheet in sheets) {
     p_B <- ggplot(df_B_cond, aes(x = Group, y = Y, fill = Block)) +
       stat_summary(fun = mean, geom = "bar",
                    position = position_dodge(width = 0.8), width = 0.7, colour = NA, size = 0.5) +
-      stat_summary(fun.data = mean_se, geom = "errorbar",
-                   position = position_dodge(width = 0.8), width = 0.5, size = 0.5) +
+      # stat_summary(fun.data = mean_se, geom = "errorbar",
+      #              position = position_dodge(width = 0.8), width = 0.5, size = 0.5) +
       labs(x = "Group", y = sheet, fill = "Block", title = paste0(cond, " - Block")) +
       scale_fill_brewer(palette = "Pastel2") +
       theme_custom
     
-    # ------- 图2：Session × Group -------
+    # ------- 图2：Session × Group（带散点与被试连线） -------
     df_A_cond <- df_A_long_subset %>% filter(Condition == cond) %>%
-      mutate(Block_label = ifelse(Session == "Pre", "Pre-test", "Post-test"),
-             Block_label = factor(Block_label, levels = c("Pre-test", "Post-test")))
-    p_A <- ggplot(df_A_cond, aes(x = Group, y = Y, fill = Block_label)) +
-      stat_summary(fun = mean, geom = "bar", position = position_dodge(width = 0.8), width = 0.7,
-                   colour = NA, size = 0.5) +
-      stat_summary(fun.data = mean_se, geom = "errorbar",
-                   position = position_dodge(width = 0.8), width = 0.5, size = 0.5) +
-      labs(x = "Group", y = sheet, fill = "Session", title = paste0(cond, " - Session")) +
+          mutate(Block_label = ifelse(Session == "Pre", "Pre-test", "Post-test"),
+          Block_label = factor(Block_label, levels = c("Pre-test", "Post-test")))
+
+    # 计算 x 真实位置：把 Group 转为数值并加上横向偏移以对齐 dodge 后的点
+    dodge_width <- 0.8
+    # 经验偏移：二元分组常用 ±0.20；如需微调可改为 0.18/0.22
+    offset_val <- 0.20
+    offsets <- c("Pre-test" = -offset_val, "Post-test" = offset_val)
+
+    df_A_cond <- df_A_cond %>%
+      mutate(Group_num = as.numeric(as.factor(Group)),   # 确保 Group_num 是整数
+             x_pos = Group_num + offsets[as.character(Block_label)])
+    p_A <- ggplot() +
+      stat_summary(data = df_A_cond, aes(x = Group, y = Y, fill = Block_label),
+                   fun = mean, geom = "bar", position = position_dodge(width = dodge_width),
+                   width = 0.7, colour = NA, size = 0.5) +
+      # stat_summary(fun.data = mean_se, geom = "errorbar",
+      #              position = position_dodge(width = 0.8), width = 0.5, size = 0.5) +
+      geom_line(data = df_A_cond, aes(x = x_pos, y = Y, group = Subject),
+                colour = "grey60", linewidth = 0.4, alpha = 0.6) +
+      geom_point(data = df_A_cond, aes(x = x_pos, y = Y, colour = Block_label),
+                 shape = 21, size = 2.2, stroke = 0.4, colour = "black", alpha = 1, show.legend = FALSE) +
       scale_fill_brewer(palette = "Pastel1") +
+      # scale_colour_brewer(palette = "Pastel1") + #控制散点边框颜色
+      labs(x = "Group", y = sheet, fill = "Session", title = paste0(cond, " - Session")) +
       theme_custom
     
     plot_list[[paste0(cond, "_Block")]] <- p_B
@@ -143,8 +159,10 @@ for (sheet in sheets) {
   p_effect <- ggplot(df_eff_long, aes(x = Group, y = Effect, fill = Condition)) +
     stat_summary(fun = mean, geom = "bar", position = position_dodge(width = 0.8), width = 0.7,
                  colour = NA, size = 0.5) +
-    stat_summary(fun.data = mean_se, geom = "errorbar",
-                 position = position_dodge(width = 0.8), width = 0.25, size = 0.5) +
+    # stat_summary(fun.data = mean_se, geom = "errorbar",
+    #              position = position_dodge(width = 0.8), width = 0.25, size = 0.5) +
+    geom_point(aes(fill = Condition), shape = 21, position = position_dodge(width = 0.8),
+               size = 1.8, alpha = 0.7, show.legend = FALSE) +
     labs(x = "Group", y = paste0(sheet, " effect"), fill = "Condition",
          title = paste0(sheet, " effect")) +
     scale_fill_brewer(palette = "Pastel2") +
