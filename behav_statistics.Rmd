@@ -74,17 +74,44 @@ for (sheet in sheets) {
   df_B_long_subset <- df_long %>% filter(Session == "Pre")
   plot_list <- list()
   for (cond in levels(df_long$Condition)) {
-    # ------- 图1：Block × Group -------
-    df_B_cond <- df_B_long_subset %>% filter(Condition == cond) %>%
+    
+    # ------- 图1：Block × Group（带散点 + 黑边框填充与柱一致 + 被试连线） -------
+    df_B_cond <- df_B_long_subset %>%
+      filter(Condition == cond) %>%
       mutate(Block = factor(Block, levels = 1:4,
                             labels = c("Baseline", "Online1", "Online2", "Offline")))
-    p_B <- ggplot(df_B_cond, aes(x = Group, y = Y, fill = Block)) +
-      stat_summary(fun = mean, geom = "bar",
-                   position = position_dodge(width = 0.8), width = 0.7, colour = NA, size = 0.5) +
-      # stat_summary(fun.data = mean_se, geom = "errorbar",
-      #              position = position_dodge(width = 0.8), width = 0.5, size = 0.5) +
-      labs(x = "Group", y = sheet, fill = "Block", title = paste0(cond, " - Block")) +
+    
+    dodge_width <- 0.8
+    # 自动为 n blocks 生成对称偏移，使点与 position_dodge 对齐
+    n_blocks <- length(levels(df_B_cond$Block))
+    # 计算每个 block 在 dodge 宽度内的中心位置（避开两端的 1/(2n) 间隙）
+    offsets_seq <- seq(from = -dodge_width/2 + dodge_width/(2*n_blocks),
+                       to   =  dodge_width/2 - dodge_width/(2*n_blocks),
+                       length.out = n_blocks)
+    # 构造命名向量，便于索引
+    offsets <- setNames(offsets_seq, levels(df_B_cond$Block))
+    
+    # 计算真实横坐标：Group -> 序号 + 对应 block 的偏移
+    df_B_cond <- df_B_cond %>%
+      mutate(Group_num = as.numeric(as.factor(Group)),
+             x_pos = Group_num + offsets[as.character(Block)])
+    
+    p_B <- ggplot() +
+      stat_summary(data = df_B_cond,
+                   aes(x = Group, y = Y, fill = Block),
+                   fun = mean, geom = "bar",
+                   position = position_dodge(width = dodge_width),
+                   width = 0.7, colour = NA, size = 0.5) +
+      # stat_summary(data = df_B_cond, aes(x = Group, y = Y, group = Block),
+      #    fun.data = mean_se, geom = "errorbar",
+      #    position = position_dodge(width = dodge_width), width = 0.2, size = 0.5) +
+      geom_line(data = df_B_cond, aes(x = x_pos, y = Y, group = Subject),
+                colour = "grey60", linewidth = 0.35, alpha = 0.6) +
+      geom_point(data = df_B_cond, aes(x = x_pos, y = Y, fill = Block),
+                 shape = 21, size = 2.6, stroke = 0.45,
+                 colour = "black", alpha = 0.95, show.legend = FALSE) +
       scale_fill_brewer(palette = "Pastel2") +
+      labs(x = "Group", y = sheet, fill = "Block", title = paste0(cond, " - Block")) +
       theme_custom
     
     # ------- 图2：Session × Group（带散点与被试连线） -------
@@ -110,7 +137,8 @@ for (sheet in sheets) {
       geom_line(data = df_A_cond, aes(x = x_pos, y = Y, group = Subject),
                 colour = "grey60", linewidth = 0.4, alpha = 0.6) +
       geom_point(data = df_A_cond, aes(x = x_pos, y = Y, colour = Block_label),
-                 shape = 21, size = 2.2, stroke = 0.4, colour = "black", alpha = 1, show.legend = FALSE) +
+                 shape = 21, size = 2.2, stroke = 0.4, colour = "black", 
+                 alpha = 1, show.legend = FALSE) +
       scale_fill_brewer(palette = "Pastel1") +
       # scale_colour_brewer(palette = "Pastel1") + #控制散点边框颜色
       labs(x = "Group", y = sheet, fill = "Session", title = paste0(cond, " - Session")) +
@@ -155,17 +183,37 @@ for (sheet in sheets) {
   mutate(Condition = recode(Condition, "1" = "HA", "2" = "HB", "3" = "HEO"),
     Condition = factor(Condition, levels = c("HA", "HB", "HEO")), Group = as.factor(Group))
 
-  # 2) 绘图（每个 Group 有 3 个 bar，代表 3 个 Condition）
-  p_effect <- ggplot(df_eff_long, aes(x = Group, y = Effect, fill = Condition)) +
-    stat_summary(fun = mean, geom = "bar", position = position_dodge(width = 0.8), width = 0.7,
-                 colour = NA, size = 0.5) +
-    # stat_summary(fun.data = mean_se, geom = "errorbar",
-    #              position = position_dodge(width = 0.8), width = 0.25, size = 0.5) +
-    geom_point(aes(fill = Condition), shape = 21, position = position_dodge(width = 0.8),
-               size = 1.8, alpha = 0.7, show.legend = FALSE) +
+  # ------- effect 图：
+  # 假设 df_eff_long 已包含 Subject, Group, Condition (factor levels: HA, HB, HEO), Effect
+  dodge_width <- 0.8
+  # 自动为 n conditions 生成对称偏移（用于计算 x_pos）
+  n_cond <- length(levels(df_eff_long$Condition))
+  offsets_seq <- seq(from = -dodge_width/2 + dodge_width/(2*n_cond),
+                     to   =  dodge_width/2 - dodge_width/(2*n_cond),
+                     length.out = n_cond)
+  offsets <- setNames(offsets_seq, levels(df_eff_long$Condition))
+  
+  # 计算真实横坐标 x_pos（用于点与线）
+  df_eff_plot <- df_eff_long %>%
+    mutate(Group_num = as.numeric(as.factor(Group)),
+           x_pos = Group_num + offsets[as.character(Condition)])
+  
+  p_effect <- ggplot() +
+    stat_summary(data = df_eff_plot, aes(x = Group, y = Effect, fill = Condition),
+                 fun = mean, geom = "bar",
+                 position = position_dodge(width = dodge_width),
+                 width = 0.7, colour = NA, size = 0.5) +
+    # stat_summary(data = df_eff_plot, aes(x = Group, y = Effect, group = Condition),
+    #              fun.data = mean_se, geom = "errorbar",
+    #              position = position_dodge(width = dodge_width), width = 0.25, size = 0.5) +
+    geom_line(data = df_eff_plot, aes(x = x_pos, y = Effect, group = Subject),
+              colour = "grey60", linewidth = 0.35, alpha = 0.6) +
+    geom_point(data = df_eff_plot, aes(x = x_pos, y = Effect, fill = Condition),
+               shape = 21, size = 2.6, stroke = 0.45,
+               colour = "black", alpha = 0.95, show.legend = FALSE) +
+    scale_fill_brewer(palette = "Pastel2") +
     labs(x = "Group", y = paste0(sheet, " effect"), fill = "Condition",
          title = paste0(sheet, " effect")) +
-    scale_fill_brewer(palette = "Pastel2") +
     theme_custom
   plot_list_diff[[sheet]] <- p_effect
 }
@@ -174,4 +222,3 @@ print(combined_plot_all)
 ggsave(filename = paste0(output_dir, "Plots_effect.png"),
        plot = combined_plot_all, width = 16, height = 12, dpi = 600)
 ```
-
