@@ -1,117 +1,141 @@
 ---
 title: "symptom_statistics"
 author: "XinHao"
-date: "2025-07-13"
+date: "2025-11-25"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-# 自动安装和加载所需包
-pkg_list <- c("ggplot2", "readxl", "tidyr", "dplyr", "ggprism", 
+```{r statistics}
+pkg_list <- c("ggplot2", "readxl", "tidyr", "dplyr", "ggprism", "purrr",
               "patchwork", "stringr", "lme4", "emmeans", "bruceR")
 sapply(pkg_list, function(pkg) {
   if (!requireNamespace(pkg, quietly = TRUE)) install.packages(pkg)
-  library(pkg, character.only = TRUE)
-})
+  library(pkg, character.only = TRUE)})
 
-# 读取数据
 file_path <- "C:/Users/XinHao/Desktop/tES_SZ_Symptom/symptom_data.xlsx"
 data <- read_excel(file_path, sheet = 1)
-
-# 设置 Group 和 Session 为因子
-data$Group <- factor(data$Group, levels = 1:5)
+data <- data %>%
+    mutate(Group = as.character(Group),
+      Group = recode(Group,"1" = "7", "2" = "9", "3" = "8", "4" = "6", "5" = "10"),
+      Group = factor(Group, levels = c("6", "7", "8", "9", "10")))
 data$Session <- factor(data$Session, levels = c("Pre", "Post"))
 
-# 指定要分析的因变量
 measure_vars <- c(
   "PANSS_Total", "PANSS_Negative", "PANSS_Positive",
-  "PANSS_Affective", "PANSS_Cognitive", "P1", "P3", "N1", "N2", "N4", "BNSS",
+  "PANSS_Affective", "PANSS_Cognitive", "BNSS",
   "PSP", "WHOQOL_BREF", "CGI_S", "AHRS", "Token(permin)")
-
-# 过滤确实存在的列，避免报错
 measure_vars <- measure_vars[measure_vars %in% colnames(data)]
 
 for (measure in measure_vars){
-  Model <- MANOVA(data, subID="ID", dv=measure, within = 'Session', between = 'Group', 
+  Model <- bruceR::MANOVA(data, subID="ID", dv=measure, within = 'Session', between = 'Group', 
                   sph.correction = "GG", aov.include = FALSE, digits = 3) %>%
     EMMEANS(effect = 'Session', by = "Group",
             contrast = "pairwise", p.adjust = "fdr", model.type = "multivariate") %>%
     EMMEANS(effect = "Group", by = 'Session',
-            contrast = "pairwise", p.adjust = "fdr", model.type = "multivariate") 
-}
+            contrast = "pairwise", p.adjust = "fdr", model.type = "multivariate") }
 
-# 颜色和主题设置
 color_map <- c("Pre" = "#f47c7c", "Post" = "#80d6ff")
 theme_custom <- theme_minimal(base_size = 12) +
-  theme(
-    panel.grid = element_blank(),
+  theme(panel.grid = element_blank(),
     axis.line = element_line(color = 'black'),
     axis.ticks = element_line(color = 'black'),
     axis.text = element_text(color = "black"),
     legend.position = "top",
-    axis.title.y = element_blank(),  # ❌ 不显示 Y 轴标题
-    plot.title = element_text(hjust = 0.5, size = 12)  # ⬇️ 缩小图标题字体
+    axis.title.y = element_blank(),  # 不显示 Y 轴标题
+    plot.title = element_text(hjust = 0.5, size = 14)  # 缩小图标题字体
   )
 
-# 生成图列表
 plot_list <- list()
-
-# 指定要作图的因变量
 measure_vars <- c(
-  "IllnessDuration(years)", "PANSS_Total", "PANSS_Negative", "PANSS_Positive",
-  "PANSS_Affective", "PANSS_Cognitive", "P1", "P3", "N1", "N2", "N4", "BNSS",
-  "HAMD", "PSP", "WHOQOL_BREF", "RSESE", "CGI_S", "AHRS", "Token(permin)",
-  "CBCT_Total", "CBCT_TMT", "CBCT_DSST", "CBCT_CPT", "CBCT_DST"
-)
+  "PANSS_Total", "PANSS_Negative", "PANSS_Positive", "PANSS_Affective", "PANSS_Cognitive", 
+  "BNSS", "HAMD", "PSP", "WHOQOL_BREF", "RSESE", "CGI_S", "AHRS", 
+  "Token(permin)", "CBCT_Total", "CBCT_TMT", "CBCT_DSST", "CBCT_CPT", "CBCT_DST")
 
 for (measure in measure_vars) {
-  p <- ggplot(data, aes(x = Group, y = .data[[measure]], fill = Session)) +
-    stat_summary(fun = mean, geom = "bar",
-                 position = position_dodge(width = 0.8), width = 0.7,
-                 color = "black", size = 0.4) +
-    stat_summary(fun.data = function(x) {
-      m <- mean(x)
-      s <- sd(x)
-      data.frame(y = m, ymin = m - s, ymax = m + s)
-    }, geom = "errorbar",
-       position = position_dodge(width = 0.8),
-       width = 0.3, size = 0.5) +
+    df_plot <- data %>%
+    mutate(Session = factor(Session, levels = c("Pre", "Post")), Group = factor(Group))
+    dodge_width <- 0.8
+    offset_val <- 0.20   # 与前面逻辑保持一致
+    offsets <- c("Pre" = -offset_val, "Post" = offset_val)
+    df_plot <- df_plot %>%
+      mutate(Group_num = as.numeric(Group), x_pos = Group_num + offsets[as.character(Session)])
+    
+  p <- ggplot() +
+    stat_summary(data = df_plot, aes(x = Group, y = .data[[measure]], fill = Session),
+      fun = mean, geom = "bar", position = position_dodge(width = dodge_width),
+      width = 0.7, colour = NA) +
+    geom_line(data = df_plot, aes(x = x_pos, y = .data[[measure]], group = ID),
+      colour = "grey60", linewidth = 0.4, alpha = 0.6) +
+    geom_point(data = df_plot, aes(x = x_pos, y = .data[[measure]], fill = Session),
+      shape = 21, size = 2.6, stroke = 0.4,colour = "black",alpha = 0.9,show.legend = FALSE) +
     scale_fill_manual(values = color_map) +
     labs(x = "Group", title = measure, fill = "Session") +
     theme_custom
-  
   plot_list[[measure]] <- p
 }
 
-# 拼成大图：4行×6列
-big_plot <- wrap_plots(plot_list, nrow = 4, ncol = 6, guides = "collect") &
+big_plot <- wrap_plots(plot_list, nrow = 3, ncol = 6, guides = "collect") &
   theme(legend.position = "bottom")
-
-# 显示图
 print(big_plot)
-
-# 保存大图（可选）
-ggsave("All_Measures_Group_Session_Barplot.png", big_plot, width = 24, height = 16, dpi = 300)
-
-
+ggsave("All_Barplot.png", big_plot, width = 24, height = 16, dpi = 500)
 ```
 
-## Including Plots
+```{r corr}
+datasym <- read_excel("C:/Users/XinHao/Desktop/tES_SZ_Symptom/symptom_data.xlsx", sheet = 1)
+measure_vars <- c("PANSS_Total", "PANSS_Negative", "PANSS_Positive", "PANSS_Affective",
+                  "PANSS_Cognitive", "BNSS", "PSP", "WHOQOL_BREF", "CGI_S", "AHRS")
+diff_data <- datasym %>%
+  arrange(ID, Session) %>%      
+  group_by(ID) %>%    
+  summarise(across(all_of(measure_vars),
+           ~ .x[Session == "Post"] - .x[Session == "Pre"],
+           .names = "{.col}")) %>%
+  ungroup()
+static_info <- datasym %>%
+  group_by(ID) %>%
+  summarise(across(all_of(c("Age", "Gender", "TimeID", "Group")), ~ .x[!is.na(.x)][1]))  
+data_symptoms <- dplyr::left_join(static_info, diff_data, by = "ID")
 
-You can also embed plots, for example:
+result_list <- map(c("IC", "WS", "RD", "TV"), function(sheet) {
+  databeh <- read_excel("C:/Users/XinHao/Desktop/tES_SZ_Behav/behavior_data.xlsx", sheet = sheet)
+  df_eff <- databeh %>%
+    mutate(Subject = as.factor(ID),
+      HA  = B5C1 - B1C1,HB  = B5C2 - B1C2,HEO = B5C3 - B1C3) %>%
+    select(Subject, HA, HB, HEO) %>%
+    rename_with(~ paste0(sheet, "_", .x), c(HA, HB, HEO))})
+data_behaviors <- reduce(result_list, full_join, by = "Subject")
 
-```{r pressure, echo=FALSE}
+final_data <- dplyr::left_join(data_symptoms, data_behaviors,by = c("TimeID" = "Subject"))
+final_data <- final_data %>%
+  mutate(across(all_of(c(measure_vars, "IC_HA", "IC_HB", "IC_HEO")), ~ as.numeric(.x)))%>%
+  mutate(across(all_of(c(measure_vars, "IC_HA", "IC_HB", "IC_HEO")), ~ scale(.x)[,1]))
 
+cor_table <- expand.grid(
+  Symptom = measure_vars,
+  Behavior = c("IC_HA", "IC_HB", "IC_HEO"),
+  stringsAsFactors = FALSE) %>%
+  mutate(test = map2(Symptom, Behavior,
+                ~ cor.test(final_data[[.x]], final_data[[.y]], method = "pearson")),
+    r = map_dbl(test, ~ .x$estimate),
+    p_raw = map_dbl(test, ~ .x$p.value)) %>%
+  mutate(p_FDR = p.adjust(p_raw, method = "fdr")) %>%
+  mutate(sig = case_when(
+      p_FDR < 0.001 ~ "***",p_FDR < 0.01  ~ "**",p_FDR < 0.05  ~ "*",TRUE ~ "")) %>%
+  select(Symptom, Behavior, r, p_raw, p_FDR, sig)
+cor_table
+
+plot_list <- expand.grid(Symptom = measure_vars, Behavior = c("IC_HA", "IC_HB", "IC_HEO"),
+                         stringsAsFactors = FALSE) %>%
+  pmap(function(Symptom, Behavior) {
+    ggplot(final_data, aes_string(x = Behavior, y = Symptom)) +
+      geom_point(alpha = 0.6) +
+      geom_smooth(method = "lm", se = TRUE, color = "grey") +
+      labs(title = paste0(Symptom, " vs ", Behavior),
+           x = Behavior, y = Symptom) +
+      theme_minimal(base_size = 10)
+  })
+combined_plot <- wrap_plots(plot_list, ncol = 5)
+print(combined_plot)
+ggsave("C:/Users/XinHao/Desktop/tES_SZ_Symptom/symptom_corr.png",
+       combined_plot, width = 25, height = 30, dpi = 300)
 ```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
